@@ -1,0 +1,5 @@
+# Tauri on Windows requires the MSVC toolchain (GNU hits DLL export limits).
+# Host toolchain is pinned in rust-toolchain.toml (stable-x86_64-pc-windows-msvc).
+
+[target.x86_64-pc-windows-msvc]
+rustflags = []

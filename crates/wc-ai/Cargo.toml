@@ -1,0 +1,21 @@
+[package]
+name = "wc-ai"
+description = "What Command AI provider adapters"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+
+[features]
+default = []
+local-llm = ["dep:llama-cpp-4", "dep:encoding_rs"]
+
+[dependencies]
+wc-core = { path = "../wc-core" }
+serde.workspace = true
+serde_json.workspace = true
+thiserror.workspace = true
+async-trait.workspace = true
+reqwest.workspace = true
+tokio.workspace = true
+llama-cpp-4 = { version = "0.3", optional = true, default-features = false, features = ["openmp", "dynamic-link"] }
+encoding_rs = { version = "0.8", optional = true }

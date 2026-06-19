@@ -1,0 +1,10 @@
+[toolchain]
+# Tauri on Windows requires MSVC; GNU hits "export ordinal too large" linking desktop_lib.dll.
+channel = "stable-x86_64-pc-windows-msvc"
+targets = [
+  "x86_64-pc-windows-msvc",
+  "aarch64-linux-android",
+  "armv7-linux-androideabi",
+  "i686-linux-android",
+  "x86_64-linux-android",
+]

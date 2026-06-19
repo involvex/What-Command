@@ -1,0 +1,8 @@
+{
+  "name": "@what-command/db-updater",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "start": "bun run index.ts"
+  }
+}

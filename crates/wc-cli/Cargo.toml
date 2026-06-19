@@ -1,0 +1,17 @@
+[package]
+name = "wc-cli"
+description = "What Command CLI"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+
+[[bin]]
+name = "wc"
+path = "src/main.rs"
+
+[dependencies]
+wc-core = { path = "../wc-core" }
+wc-ai = { path = "../wc-ai" }
+clap.workspace = true
+tokio.workspace = true
+dirs.workspace = true

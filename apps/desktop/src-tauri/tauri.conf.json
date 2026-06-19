@@ -1,0 +1,45 @@
+{
+  "$schema": "https://schema.tauri.app/config/2",
+  "productName": "What Command",
+  "version": "0.1.0",
+  "identifier": "com.involvex.whatcommand",
+  "build": {
+    "beforeDevCommand": "node ../../scripts/tauri-hook.mjs dev",
+    "devUrl": "http://localhost:1420",
+    "beforeBuildCommand": "node ../../scripts/tauri-hook.mjs build",
+    "frontendDist": "../dist"
+  },
+  "app": {
+    "windows": [
+      {
+        "label": "main",
+        "title": "What Command",
+        "width": 1200,
+        "height": 800,
+        "minWidth": 360,
+        "minHeight": 640
+      }
+    ],
+    "security": {
+      "csp": null,
+      "capabilities": ["default"]
+    }
+  },
+  "bundle": {
+    "active": true,
+    "targets": "all",
+    "icon": [
+      "icons/32x32.png",
+      "icons/128x128.png",
+      "icons/128x128@2x.png",
+      "icons/icon.icns",
+      "icons/icon.ico"
+    ],
+    "android": {
+      "minSdkVersion": 24
+    },
+    "resources": {
+      "../../../data/commands.db": "commands.db"
+    }
+  }
+}

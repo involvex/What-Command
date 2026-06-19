@@ -1,0 +1,9 @@
+{
+  "name": "@what-command/halo",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Halo design system for What Command",
+  "files": [
+    "index.css"
+  ]
+}
