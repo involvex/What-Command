@@ -1,9 +1,7 @@
 import { existsSync } from "node:fs";
 import { spawnSync } from "node:child_process";
-import { join, dirname } from "node:path";
-import { fileURLToPath } from "node:url";
+import { join } from "node:path";
 
-const root = join(dirname(fileURLToPath(import.meta.url)), "..");
 const pkg = "com.involvex.whatcommand";
 
 function sh(args) {

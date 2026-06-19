@@ -78,7 +78,7 @@ pub fn save_config(config: &AppConfig) -> Result<()> {
 
 pub fn ensure_db_from_seed(seed: &Path, target: &Path) -> Result<()> {
     ensure_db_from_seed_source(
-        seed.exists().then(|| SeedSource::Path(seed)),
+        seed.exists().then_some(SeedSource::Path(seed)),
         target,
     )
 }

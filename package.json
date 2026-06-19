@@ -9,16 +9,21 @@
   "scripts": {
     "dev": "bun run --filter desktop tauri dev",
     "build": "bun run --filter desktop tauri build",
+    "prebuild": "bun run check",
+    "check": "bun run format && bun run lint:fix && bun run typecheck",
+    "format": "prettier . --write",
+    "format:check": "prettier . --check",
+    "lint": "eslint .",
+    "lint:fix": "eslint . --fix",
+    "typecheck": "bun run --filter desktop typecheck",
     "android:patch": "node scripts/patch-android-abi.mjs",
     "android:check": "node scripts/android-compat-check.mjs",
     "android:dev": "node scripts/patch-android-abi.mjs && bun run --filter desktop tauri android dev",
     "android:build": "node scripts/patch-android-abi.mjs && bun run --filter desktop tauri android build",
-    "android:apk": "node scripts/patch-android-abi.mjs && bun run --filter desktop tauri android build -- --apk --target aarch64",
-    "typecheck": "bun run --filter desktop typecheck",
-    "lint": "eslint .",
-    "format:check": "prettier . --check",
+    "android:apk": "node scripts/patch-android-abi.mjs && bun run --filter desktop tauri android build --apk --target aarch64",
     "db:update": "bun run scripts/db-updater/index.ts",
-    "db:seed": "cargo run -p wc-cli -- update"
+    "db:seed": "cargo run -p wc-cli -- update",
+    "icons:generate": "bun run --filter desktop tauri icon \"../../assets/icon 1024x1024.png\""
   },
   "devDependencies": {
     "@typescript-eslint/eslint-plugin": "^8.18.0",
