@@ -5,14 +5,32 @@ on:
     - cron: "0 2 * * 1"
   workflow_dispatch:
 
+permissions:
+  contents: write
+
+concurrency:
+  group: db-update
+  cancel-in-progress: true
+
 jobs:
   update:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - name: Checkout
+        uses: actions/checkout@v5
+        with:
+          persist-credentials: true
+
       - uses: oven-sh/setup-bun@v2
-      - run: bun run db:update
-      - uses: stefanzweifel/git-auto-commit-action@v5
+
+      - name: Install dependencies
+        run: bun install
+
+      - name: Update command database
+        run: bun run db:update
+
+      - name: Commit and push
+        uses: stefanzweifel/git-auto-commit-action@v7
         with:
           commit_message: "chore: update command db"
           file_pattern: data/commands.db
