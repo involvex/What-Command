@@ -69,7 +69,7 @@ impl Default for AppSettings {
     fn default() -> Self {
         Self {
             ai_provider: "opencode_zen".into(),
-            ai_model: "gpt-4o-mini".into(),
+            ai_model: "mimo-v2.5-free".into(),
             fallback_provider: Some("local_llm".into()),
             fallback_model: Some("gemma-2b".into()),
             opencode_api_key: None,

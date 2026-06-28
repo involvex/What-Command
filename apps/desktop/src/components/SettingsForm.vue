@@ -14,7 +14,7 @@ const providers = [
 
 const form = reactive<AppSettings>({
   ai_provider: "opencode_zen",
-  ai_model: "gpt-4o-mini",
+  ai_model: "mimo-v2.5-free",
   fallback_provider: "local_llm",
   fallback_model: "gemma-2b-it-q4",
   opencode_api_key: "",
