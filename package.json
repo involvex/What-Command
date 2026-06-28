@@ -19,6 +19,7 @@
     "android:patch": "node scripts/patch-android-abi.mjs",
     "android:check": "node scripts/android-compat-check.mjs",
     "android:dev": "node scripts/patch-android-abi.mjs && bun run --filter desktop tauri android dev",
+    "android:run": "node scripts/patch-android-abi.mjs && bun run --filter desktop tauri android run",
     "android:build": "node scripts/patch-android-abi.mjs && bun run --filter desktop tauri android build",
     "android:apk": "node scripts/patch-android-abi.mjs && bun run --filter desktop tauri android build --apk --target aarch64",
     "db:update": "bun run scripts/db-updater/index.ts",

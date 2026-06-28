@@ -5,6 +5,17 @@ import { fileURLToPath } from "node:url";
 
 const root = join(dirname(fileURLToPath(import.meta.url)), "..");
 const gradleProps = join(root, "apps/desktop/src-tauri/gen/android/gradle.properties");
+const rustPlugin = join(
+  root,
+  "apps/desktop/src-tauri/gen/android/buildSrc/src/main/java/com/involvex/whatcommand/kotlin/RustPlugin.kt",
+);
+
+const UNIVERSAL_PROFILE = {
+  archList: "arm64,arm,x86,x86_64",
+  abiList: "arm64-v8a,armeabi-v7a,x86,x86_64",
+  targetList: "aarch64,armv7,i686,x86_64",
+  variant: "universalDebug",
+};
 
 function adbProp(name) {
   const result = spawnSync("adb", ["shell", "getprop", name], {
@@ -47,12 +58,50 @@ function pickProfile(primaryAbi, abiList) {
       variant: "x86Debug",
     };
   }
-  return {
-    archList: abiList.join(","),
-    abiList: abiList.join(","),
-    targetList: "aarch64,armv7,i686,x86_64",
-    variant: "universalDebug",
-  };
+  if (abiList.length > 0) {
+    return {
+      archList: abiList.join(","),
+      abiList: abiList.join(","),
+      targetList: UNIVERSAL_PROFILE.targetList,
+      variant: "universalDebug",
+    };
+  }
+  return UNIVERSAL_PROFILE;
+}
+
+function patchRustPlugin() {
+  if (!existsSync(rustPlugin)) {
+    return;
+  }
+
+  let content = readFileSync(rustPlugin, "utf8");
+  const replacements = [
+    [
+      "(findProperty(\"abiList\") as? String)?.split(',')",
+      "(findProperty(\"abiList\") as? String)?.takeIf { it.isNotBlank() }?.split(',')",
+    ],
+    [
+      "(findProperty(\"archList\") as? String)?.split(',')",
+      "(findProperty(\"archList\") as? String)?.takeIf { it.isNotBlank() }?.split(',')",
+    ],
+    [
+      "(findProperty(\"targetList\") as? String)?.split(',')",
+      "(findProperty(\"targetList\") as? String)?.takeIf { it.isNotBlank() }?.split(',')",
+    ],
+  ];
+
+  let changed = false;
+  for (const [from, to] of replacements) {
+    if (content.includes(from) && !content.includes(to)) {
+      content = content.replace(from, to);
+      changed = true;
+    }
+  }
+
+  if (changed) {
+    writeFileSync(rustPlugin, content);
+    console.log("Patched RustPlugin.kt to ignore blank gradle.properties ABI keys");
+  }
 }
 
 if (!existsSync(gradleProps)) {
@@ -102,6 +151,7 @@ const block = [
 ].join("\n");
 
 writeFileSync(gradleProps, `${content}${block}`);
+patchRustPlugin();
 
 console.log(
   `Android ABI profile: ${keys.abiList} (use ${profile.variant} in Android Studio if prompted)`,
