@@ -22,7 +22,8 @@ bun install
 bun run db:update          # build data/commands.db
 bun run dev                # Tauri desktop dev
 bun run android:dev        # Android dev (after android init)
-bun run android:apk        # release APK
+bun run android:apk        # debug/release APK with local-llm (on-device GGUF)
+bun run dev:local          # desktop dev with local-llm
 bun run typecheck
 bun run lint
 cargo build -p wc-cli      # CLI binary `wc`
@@ -38,7 +39,7 @@ wc explain "kubectl get pods"
 wc update
 ```
 
-Set `OPENCODE_API_KEY` or `KILO_API_KEY` (see `.env.example`) for live AI. For on-device GGUF inference, place a model in `~/.config/what-command/models/` and build with `cargo build --features local-llm`.
+Set `OPENCODE_API_KEY` or `KILO_API_KEY` (see `.env.example`) for live AI. For on-device GGUF inference, pick a `.gguf` file in Settings (copied to app storage on Android) and build with the `local-llm` feature — included in `bun run android:apk` and `bun run dev:local`. Host `cargo build --features local-llm` does **not** affect the Android APK. Use `bun run android:apk` (sets `ANDROID_NDK`, bindgen sysroot, and `local-llm`) or wrap manual builds with `node scripts/android-ndk-env.mjs …`.
 
 ## Project layout
 

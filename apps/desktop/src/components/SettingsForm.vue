@@ -2,6 +2,7 @@
 import { computed, reactive, ref, watch } from "vue";
 import type { AppSettings } from "../types";
 import { useSettingsStore } from "../stores/settings";
+import { pickGgufModelFile } from "../composables/useTauri";
 
 const settingsStore = useSettingsStore();
 
@@ -27,6 +28,7 @@ const form = reactive<AppSettings>({
 });
 
 const saving = ref(false);
+const pickingModel = ref(false);
 const saved = ref(false);
 const error = ref<string | null>(null);
 
@@ -90,6 +92,21 @@ async function onSave() {
     error.value = e instanceof Error ? e.message : String(e);
   } finally {
     saving.value = false;
+  }
+}
+
+async function onPickModel() {
+  pickingModel.value = true;
+  error.value = null;
+  try {
+    const path = await pickGgufModelFile();
+    if (path) {
+      form.local_model_path = path;
+    }
+  } catch (e) {
+    error.value = e instanceof Error ? e.message : String(e);
+  } finally {
+    pickingModel.value = false;
   }
 }
 </script>
@@ -204,13 +221,23 @@ async function onSave() {
       </label>
       <label class="field">
         <span class="field__label">GGUF model path</span>
-        <input
-          v-model="form.local_model_path"
-          class="field__input"
-          type="text"
-          autocomplete="off"
-          placeholder="~/.config/what-command/models/model.gguf"
-        />
+        <div class="path-row">
+          <input
+            v-model="form.local_model_path"
+            class="field__input path-row__input"
+            type="text"
+            autocomplete="off"
+            placeholder="App config models/ or pick a .gguf file"
+          />
+          <button
+            type="button"
+            class="btn btn--secondary path-row__btn"
+            :disabled="pickingModel"
+            @click="onPickModel"
+          >
+            {{ pickingModel ? "Opening…" : "Browse…" }}
+          </button>
+        </div>
       </label>
       <label class="field">
         <span class="field__label">Max tokens</span>
@@ -223,8 +250,10 @@ async function onSave() {
         />
       </label>
       <p class="hint">
-        Build with <code>cargo build --features local-llm</code> for on-device llama.cpp
-        inference.
+        Use Browse to copy a model into app storage (required on Android). Desktop
+        builds: <code>bun run dev:local</code> or
+        <code>cargo build -p desktop --features local-llm</code>. Android APK:
+        <code>bun run android:apk</code> (NDK sysroot + local-llm).
       </p>
     </template>
 
@@ -265,6 +294,18 @@ async function onSave() {
   background: var(--color-surface);
   color: var(--color-text);
   font: inherit;
+}
+.path-row {
+  display: flex;
+  gap: var(--space-2);
+  align-items: stretch;
+}
+.path-row__input {
+  flex: 1;
+  min-width: 0;
+}
+.path-row__btn {
+  flex-shrink: 0;
 }
 .hint {
   font-size: var(--text-body-sm-size);

@@ -18,21 +18,23 @@
     "typecheck": "bun run --filter desktop typecheck",
     "android:patch": "node scripts/patch-android-abi.mjs",
     "android:check": "node scripts/android-compat-check.mjs",
-    "android:dev": "node scripts/patch-android-abi.mjs && bun run --filter desktop tauri android dev",
-    "android:run": "node scripts/patch-android-abi.mjs && bun run --filter desktop tauri android run",
-    "android:build": "node scripts/patch-android-abi.mjs && bun run --filter desktop tauri android build",
-    "android:apk": "node scripts/patch-android-abi.mjs && bun run --filter desktop tauri android build --apk --target aarch64",
+    "android:dev": "node scripts/patch-android-abi.mjs && node scripts/android-ndk-env.mjs bun run --filter desktop tauri android dev --features local-llm",
+    "android:run": "node scripts/patch-android-abi.mjs && node scripts/android-ndk-env.mjs bun run --filter desktop tauri android run --features local-llm",
+    "android:build": "node scripts/patch-android-abi.mjs && node scripts/android-ndk-env.mjs bun run --filter desktop tauri android build --features local-llm",
+    "android:apk": "node scripts/patch-android-abi.mjs && node scripts/android-ndk-env.mjs bun run --filter desktop tauri android build --apk --target aarch64 --features local-llm",
+    "android:apk:debug": "node scripts/patch-android-abi.mjs && node scripts/android-ndk-env.mjs bun run --filter desktop tauri android build -d --apk --target aarch64 --features local-llm",
+    "dev:local": "bun run --filter desktop tauri dev --features local-llm",
     "db:update": "bun run scripts/db-updater/index.ts",
     "db:seed": "cargo run -p wc-cli -- update",
     "icons:generate": "bun run --filter desktop tauri icon \"../../assets/icon 1024x1024.png\""
   },
   "devDependencies": {
-    "@typescript-eslint/eslint-plugin": "^8.18.0",
-    "@typescript-eslint/parser": "^8.18.0",
-    "eslint": "^9.17.0",
+    "@typescript-eslint/eslint-plugin": "^8.63.0",
+    "@typescript-eslint/parser": "^8.63.0",
+    "eslint": "^9.39.5",
     "eslint-plugin-vue": "^9.32.0",
-    "prettier": "^3.4.2",
+    "prettier": "^3.9.5",
     "typescript": "~5.6.2",
-    "typescript-eslint": "^8.18.0"
+    "typescript-eslint": "^8.63.0"
   }
 }

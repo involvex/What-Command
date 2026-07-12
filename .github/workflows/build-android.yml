@@ -22,7 +22,7 @@ jobs:
 
       - name: Build APK
         working-directory: apps/desktop
-        run: bun tauri android build -- --apk
+        run: node ../../scripts/android-ndk-env.mjs bun tauri android build -- --apk --features local-llm
 
       - name: Upload APK
         uses: actions/upload-artifact@v4

@@ -6,8 +6,12 @@
   "permissions": [
     "core:default",
     "clipboard-manager:default",
+    "dialog:default",
     "store:default",
     "fs:allow-read",
+    "fs:allow-read-file",
+    "fs:allow-app-read-recursive",
+    "fs:allow-app-write-recursive",
     "fs:allow-resource-read-recursive"
   ]
 }

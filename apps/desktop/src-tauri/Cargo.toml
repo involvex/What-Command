@@ -22,6 +22,7 @@ wc-core = { path = "../../../crates/wc-core" }
 wc-ai = { path = "../../../crates/wc-ai" }
 tauri = { version = "2.11", features = [] }
 tauri-plugin-clipboard-manager = "2"
+tauri-plugin-dialog = "2"
 tauri-plugin-fs = "2"
 tauri-plugin-store = "2"
 serde = { workspace = true }

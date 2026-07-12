@@ -80,6 +80,23 @@ export async function saveSettings(
   return invoke("save_settings", { settings });
 }
 
+export async function importGgufModel(sourcePath: string): Promise<string> {
+  const { invoke } = await import("@tauri-apps/api/core");
+  return invoke<string>("import_gguf_model", { sourcePath });
+}
+
+export async function pickGgufModelFile(): Promise<string | null> {
+  const { open } = await import("@tauri-apps/plugin-dialog");
+  const selected = await open({
+    multiple: false,
+    filters: [{ name: "GGUF model", extensions: ["gguf"] }],
+  });
+  if (!selected || Array.isArray(selected)) {
+    return null;
+  }
+  return importGgufModel(selected);
+}
+
 export async function savePlaygroundSession(session: PlaygroundSession): Promise<void> {
   const { invoke } = await import("@tauri-apps/api/core");
   return invoke("save_playground_session", { session });

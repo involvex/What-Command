@@ -1,11 +1,14 @@
 use std::collections::HashMap;
+use std::fs;
 use std::path::PathBuf;
+#[cfg(not(target_os = "android"))]
+use std::path::Path;
 use std::sync::Mutex;
 
 use tauri::{Manager, State};
 use wc_ai::build_router;
 use wc_core::config::{
-    ensure_db_from_seed, load_config, save_config, set_config_dir, AppConfig,
+    config_dir, ensure_db_from_seed, load_config, save_config, set_config_dir, AppConfig,
 };
 #[cfg(target_os = "android")]
 use wc_core::config::ensure_db_from_seed_bytes;
@@ -230,6 +233,83 @@ fn preserve_secrets(previous: &AppSettings, next: &mut AppSettings) {
     }
 }
 
+#[cfg(target_os = "android")]
+fn android_import_file_name(source_path: &str) -> Result<std::ffi::OsString, String> {
+    use std::str::FromStr;
+
+    use tauri_plugin_fs::FilePath;
+
+    match FilePath::from_str(source_path).unwrap() {
+        FilePath::Path(path) => path
+            .file_name()
+            .map(std::ffi::OsString::from)
+            .ok_or_else(|| "invalid source path".to_string()),
+        FilePath::Url(url) => {
+            let segment = url
+                .path()
+                .rsplit('/')
+                .find(|part| !part.is_empty())
+                .ok_or_else(|| "invalid source URI".to_string())?;
+            if segment.ends_with(".gguf") {
+                return Ok(std::ffi::OsString::from(segment));
+            }
+            // SAF document ids often look like primary%3ADownload%2Fmodel.gguf
+            let decoded = segment.replace("%2F", "/").replace("%3A", ":");
+            let name = decoded
+                .rsplit('/')
+                .next()
+                .filter(|name| name.ends_with(".gguf"))
+                .or_else(|| decoded.rsplit(':').next().filter(|name| name.ends_with(".gguf")))
+                .ok_or_else(|| {
+                    "could not determine .gguf file name from picker URI; try another location"
+                        .to_string()
+                })?;
+            Ok(std::ffi::OsString::from(name))
+        }
+    }
+}
+
+#[tauri::command]
+#[cfg_attr(not(target_os = "android"), allow(unused_variables))]
+async fn import_gguf_model(app: tauri::AppHandle, source_path: String) -> Result<String, String> {
+    let dest_dir = config_dir().map_err(|e| e.to_string())?.join("models");
+    fs::create_dir_all(&dest_dir).map_err(|e| e.to_string())?;
+
+    #[cfg(target_os = "android")]
+    let file_name = android_import_file_name(&source_path)?;
+    #[cfg(not(target_os = "android"))]
+    let file_name = Path::new(&source_path)
+        .file_name()
+        .map(|name| name.to_owned())
+        .ok_or_else(|| "invalid source path".to_string())?;
+    let dest = dest_dir.join(&file_name);
+
+    #[cfg(target_os = "android")]
+    {
+        use std::str::FromStr;
+
+        use tauri_plugin_fs::{FilePath, FsExt};
+
+        let file_path = FilePath::from_str(&source_path).unwrap();
+        let bytes = app
+            .fs()
+            .read(file_path)
+            .map_err(|e| format!("failed to read model file: {e}"))?;
+        fs::write(&dest, bytes).map_err(|e| e.to_string())?;
+    }
+
+    #[cfg(not(target_os = "android"))]
+    {
+        let source = PathBuf::from(&source_path);
+        if !source.is_file() {
+            return Err(format!("not a file: {source_path}"));
+        }
+        fs::copy(&source, &dest).map_err(|e| e.to_string())?;
+    }
+
+    Ok(dest.to_string_lossy().into_owned())
+}
+
 #[tauri::command]
 fn save_playground_session(
     state: State<'_, AppState>,
@@ -260,6 +340,7 @@ fn list_playground_sessions(
 pub fn run() {
     tauri::Builder::default()
         .plugin(tauri_plugin_clipboard_manager::init())
+        .plugin(tauri_plugin_dialog::init())
         .plugin(tauri_plugin_fs::init())
         .plugin(tauri_plugin_store::Builder::new().build())
         .setup(|app| {
@@ -280,6 +361,7 @@ pub fn run() {
             explain_command,
             get_settings,
             save_settings,
+            import_gguf_model,
             save_playground_session,
             list_playground_sessions,
         ])
