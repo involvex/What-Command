@@ -2,7 +2,7 @@
 import { computed, reactive, ref, watch } from "vue";
 import type { AppSettings } from "../types";
 import { useSettingsStore } from "../stores/settings";
-import { pickGgufModelFile } from "../composables/useTauri";
+import { pickGgufModelFile, modelIdFromGgufPath } from "../composables/useTauri";
 
 const settingsStore = useSettingsStore();
 
@@ -62,6 +62,11 @@ const showKilo = computed(
 const showLocal = computed(
   () => form.ai_provider === "local_llm" || form.fallback_provider === "local_llm",
 );
+const localModelId = computed(() =>
+  form.local_model_path
+    ? modelIdFromGgufPath(form.local_model_path)
+    : form.local_model_id || "not set",
+);
 const showCompat = computed(
   () =>
     form.ai_provider === "openai_compat" || form.fallback_provider === "openai_compat",
@@ -102,6 +107,14 @@ async function onPickModel() {
     const path = await pickGgufModelFile();
     if (path) {
       form.local_model_path = path;
+      const id = modelIdFromGgufPath(path);
+      form.local_model_id = id;
+      if (form.ai_provider === "local_llm") {
+        form.ai_model = id;
+      }
+      if (form.fallback_provider === "local_llm") {
+        form.fallback_model = id;
+      }
     }
   } catch (e) {
     error.value = e instanceof Error ? e.message : String(e);
@@ -129,7 +142,7 @@ async function onPickModel() {
       </select>
     </label>
 
-    <label class="field">
+    <label v-if="form.ai_provider !== 'local_llm'" class="field">
       <span class="field__label">Primary model</span>
       <input
         v-model="form.ai_model"
@@ -149,7 +162,7 @@ async function onPickModel() {
       </select>
     </label>
 
-    <label v-if="form.fallback_provider" class="field">
+    <label v-if="form.fallback_provider && form.fallback_provider !== 'local_llm'" class="field">
       <span class="field__label">Fallback model</span>
       <input
         v-model="form.fallback_model"
@@ -210,35 +223,27 @@ async function onPickModel() {
     </template>
 
     <template v-if="showLocal">
-      <label class="field">
-        <span class="field__label">Local model ID</span>
-        <input
-          v-model="form.local_model_id"
-          class="field__input"
-          type="text"
-          autocomplete="off"
-        />
-      </label>
-      <label class="field">
-        <span class="field__label">GGUF model path</span>
+      <div class="field">
+        <span class="field__label">Local GGUF model</span>
         <div class="path-row">
           <input
-            v-model="form.local_model_path"
+            :value="form.local_model_path || ''"
             class="field__input path-row__input"
             type="text"
-            autocomplete="off"
-            placeholder="App config models/ or pick a .gguf file"
+            readonly
+            placeholder="Pick a main .gguf weights file (not mmproj)"
           />
           <button
             type="button"
-            class="btn btn--secondary path-row__btn"
+            class="btn btn--primary path-row__btn"
             :disabled="pickingModel"
             @click="onPickModel"
           >
             {{ pickingModel ? "Opening…" : "Browse…" }}
           </button>
         </div>
-      </label>
+        <span class="hint">Model ID: {{ localModelId }}</span>
+      </div>
       <label class="field">
         <span class="field__label">Max tokens</span>
         <input
@@ -250,10 +255,9 @@ async function onPickModel() {
         />
       </label>
       <p class="hint">
-        Use Browse to copy a model into app storage (required on Android). Desktop
-        builds: <code>bun run dev:local</code> or
-        <code>cargo build -p desktop --features local-llm</code>. Android APK:
-        <code>bun run android:apk</code> (NDK sysroot + local-llm).
+        Browse copies the model into app storage (required on Android). Use the main
+        LLM <code>.gguf</code> file — not <code>mmproj</code> vision projector files.
+        Android: <code>bun run android:apk:debug</code>.
       </p>
     </template>
 

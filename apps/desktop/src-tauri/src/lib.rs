@@ -233,6 +233,18 @@ fn preserve_secrets(previous: &AppSettings, next: &mut AppSettings) {
     }
 }
 
+fn reject_non_llm_gguf_name(file_name: &std::ffi::OsStr) -> Result<(), String> {
+    let name = file_name.to_string_lossy().to_lowercase();
+    if name.contains("mmproj") {
+        return Err(
+            "this is a multimodal projector (mmproj) file, not the main LLM weights. \
+             Pick the main .gguf model file instead (without mmproj in the name)."
+                .into(),
+        );
+    }
+    Ok(())
+}
+
 #[cfg(target_os = "android")]
 fn android_import_file_name(source_path: &str) -> Result<std::ffi::OsString, String> {
     use std::str::FromStr;
@@ -282,6 +294,7 @@ async fn import_gguf_model(app: tauri::AppHandle, source_path: String) -> Result
         .file_name()
         .map(|name| name.to_owned())
         .ok_or_else(|| "invalid source path".to_string())?;
+    reject_non_llm_gguf_name(&file_name)?;
     let dest = dest_dir.join(&file_name);
 
     #[cfg(target_os = "android")]

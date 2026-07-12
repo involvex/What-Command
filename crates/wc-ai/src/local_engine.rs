@@ -61,7 +61,20 @@ mod gguf {
 
         let backend = LlamaBackend::init().map_err(|e| WcError::Ai(e.to_string()))?;
         let model = LlamaModel::load_from_file(&backend, path, &LlamaModelParams::default())
-            .map_err(|e| WcError::Ai(format!("failed to load GGUF {}: {e}", path.display())))?;
+            .map_err(|e| {
+                let msg = e.to_string();
+                let hint = if path.to_string_lossy().to_lowercase().contains("mmproj") {
+                    " Hint: mmproj files are vision projectors, not text LLM weights."
+                } else if msg.contains("null") {
+                    " The file may be the wrong GGUF type, corrupted, or too large for device RAM."
+                } else {
+                    ""
+                };
+                WcError::Ai(format!(
+                    "failed to load GGUF {}: {msg}{hint}",
+                    path.display()
+                ))
+            })?;
         let cached = Arc::new(CachedModel { backend, model });
         guard.insert(path.to_path_buf(), Arc::clone(&cached));
         Ok(cached)

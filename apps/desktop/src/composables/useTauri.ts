@@ -80,6 +80,11 @@ export async function saveSettings(
   return invoke("save_settings", { settings });
 }
 
+export function modelIdFromGgufPath(path: string): string {
+  const base = path.split(/[/\\]/).pop() ?? path;
+  return base.replace(/\.gguf$/i, "");
+}
+
 export async function importGgufModel(sourcePath: string): Promise<string> {
   const { invoke } = await import("@tauri-apps/api/core");
   return invoke<string>("import_gguf_model", { sourcePath });
