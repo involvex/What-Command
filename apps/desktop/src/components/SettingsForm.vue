@@ -162,7 +162,10 @@ async function onPickModel() {
       </select>
     </label>
 
-    <label v-if="form.fallback_provider && form.fallback_provider !== 'local_llm'" class="field">
+    <label
+      v-if="form.fallback_provider && form.fallback_provider !== 'local_llm'"
+      class="field"
+    >
       <span class="field__label">Fallback model</span>
       <input
         v-model="form.fallback_model"
@@ -255,8 +258,8 @@ async function onPickModel() {
         />
       </label>
       <p class="hint">
-        Browse copies the model into app storage (required on Android). Use the main
-        LLM <code>.gguf</code> file — not <code>mmproj</code> vision projector files.
+        Browse copies the model into app storage (required on Android). Use the main LLM
+        <code>.gguf</code> file — not <code>mmproj</code> vision projector files.
         Android: <code>bun run android:apk:debug</code>.
       </p>
     </template>
