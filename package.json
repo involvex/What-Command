@@ -26,6 +26,11 @@
     "dev:local": "bun run --filter desktop tauri dev --features local-llm",
     "db:update": "bun run scripts/db-updater/index.ts",
     "db:seed": "cargo run -p wc-cli -- update",
+    "cli:build": "cargo build -p wc-cli --release",
+    "cli:dev": "cargo run -p wc-cli --",
+    "cli:install": "cargo install --path crates/wc-cli --force",
+    "cli:test": "cargo test -p wc-cli",
+    "cli:completions": "cargo run -p wc-cli -- completions",
     "icons:generate": "bun run --filter desktop tauri icon \"../../assets/icon 1024x1024.png\""
   },
   "devDependencies": {

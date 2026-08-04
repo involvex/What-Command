@@ -1,5 +1,6 @@
 use std::path::PathBuf;
-use clap::{Parser, Subcommand};
+use clap::{Parser, Subcommand, CommandFactory};
+use clap_complete::Shell;
 use wc_core::config::{ensure_db_from_seed, load_config};
 use wc_core::db::CommandStore;
 use wc_ai::build_router;
@@ -30,6 +31,12 @@ enum Commands {
     },
     /// Refresh bundled command database from seed
     Update,
+    /// Generate shell completions
+    Completions {
+        /// Shell to generate completions for
+        #[arg(value_enum)]
+        shell: Shell,
+    },
 }
 
 fn db_path() -> PathBuf {
@@ -97,6 +104,11 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
             } else {
                 println!("Seed database not found at {}", seed.display());
             }
+        }
+        Commands::Completions { shell } => {
+            use clap_complete::generate;
+            let mut cmd = Cli::command();
+            generate(shell, &mut cmd, "wc", &mut std::io::stdout());
         }
     }
     Ok(())
