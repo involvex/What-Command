@@ -8,12 +8,9 @@
 
 | Feature                         | Difficulty | User Need   | Business Value         | Phase        |
 | ------------------------------- | ---------- | ----------- | ---------------------- | ------------ |
-| **1. Command Palette (Cmd+K)**  | Medium     | ⭐⭐⭐ High | Core UX differentiator | P0           |
-| **2. Parameterized Templates**  | Medium     | ⭐⭐ High   | Power user retention   | P0           |
-| **3. Smart History/Usage**      | Low        | ⭐⭐ High   | Daily workflow speed   | P0           |
-| **6. Shell Completions**        | Low        | ⭐⭐⭐ High | CLI adoption           | P0 (✅ Done) |
-| **22. Virtualized Lists**       | Medium     | ⭐⭐ Medium | Mobile perf            | P0           |
-| **24. Error Boundaries**        | Low        | ⭐⭐ High   | Production stability   | P0           |
+| **1. Command Palette (Cmd+K)**  | Medium     | ⭐⭐⭐ High | Core UX differentiator | P0 (✅ Done) |
+| **2. Parameterized Templates**  | Medium     | ⭐⭐ High   | Power user retention   | P0 (✅ Done) |
+| **3. Smart History/Usage**      | Low        | ⭐⭐ High   | Daily workflow speed   | P0 (✅ Done) |
 | **4. Command Packs**            | Medium     | ⭐⭐ Medium | Community growth       | P1           |
 | **5. Enhanced AI Chat**         | High       | ⭐⭐⭐ High | AI differentiation     | P1           |
 | **8. Custom Commands**          | Low        | ⭐⭐ Medium | Knowledge capture      | P1           |
