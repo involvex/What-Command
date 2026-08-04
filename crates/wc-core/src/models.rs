@@ -51,6 +51,15 @@ pub struct PlaygroundSession {
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct CommandUsage {
+    pub id: String,
+    pub command_id: String,
+    pub action: String,
+    pub timestamp: String,
+    pub platform: Option<String>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct AppSettings {
     pub ai_provider: String,
     pub ai_model: String,

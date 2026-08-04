@@ -349,13 +349,88 @@ fn list_playground_sessions(
         .map_err(|e| e.to_string())
 }
 
+fn current_platform() -> &'static str {
+    if cfg!(target_os = "android") {
+        "android"
+    } else if cfg!(target_os = "windows") {
+        "windows"
+    } else if cfg!(target_os = "macos") {
+        "macos"
+    } else if cfg!(target_os = "linux") {
+        "linux"
+    } else {
+        "unknown"
+    }
+}
+
+#[tauri::command]
+fn record_usage(
+    state: State<'_, AppState>,
+    command_id: String,
+    action: String,
+) -> Result<(), String> {
+    let platform = current_platform();
+    state
+        .store
+        .lock()
+        .map_err(|e| e.to_string())?
+        .record_usage(&command_id, &action, Some(platform))
+        .map_err(|e| e.to_string())
+}
+
+#[tauri::command]
+fn get_recent_commands(
+    state: State<'_, AppState>,
+    limit: usize,
+) -> Result<Vec<Command>, String> {
+    state
+        .store
+        .lock()
+        .map_err(|e| e.to_string())?
+        .get_recent_commands(limit)
+        .map_err(|e| e.to_string())
+}
+
+#[tauri::command]
+fn get_top_commands(
+    state: State<'_, AppState>,
+    limit: usize,
+    days: i64,
+) -> Result<Vec<Command>, String> {
+    state
+        .store
+        .lock()
+        .map_err(|e| e.to_string())?
+        .get_top_commands(limit, days)
+        .map_err(|e| e.to_string())
+}
+
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
-    tauri::Builder::default()
+    let mut builder = tauri::Builder::default()
         .plugin(tauri_plugin_clipboard_manager::init())
         .plugin(tauri_plugin_dialog::init())
         .plugin(tauri_plugin_fs::init())
         .plugin(tauri_plugin_store::Builder::new().build())
+        .plugin(tauri_plugin_deep_link::init());
+
+    #[cfg(not(any(target_os = "android", target_os = "ios")))]
+    {
+        let plugin = tauri_plugin_global_shortcut::Builder::new()
+            .with_shortcut("CommandOrControl+K")
+            .expect("failed to parse shortcut")
+            .with_handler(|app, _shortcut, event| {
+                use tauri::Emitter;
+                use tauri_plugin_global_shortcut::ShortcutState;
+                if event.state == ShortcutState::Pressed {
+                    let _ = app.emit("show-command-palette", ());
+                }
+            })
+            .build();
+        builder = builder.plugin(plugin);
+    }
+
+    builder
         .setup(|app| {
             let state = init_state(app.handle())?;
             app.manage(state);
@@ -377,6 +452,9 @@ pub fn run() {
             import_gguf_model,
             save_playground_session,
             list_playground_sessions,
+            record_usage,
+            get_recent_commands,
+            get_top_commands,
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");

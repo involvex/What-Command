@@ -116,3 +116,26 @@ export async function copyToClipboard(text: string): Promise<void> {
   const { writeText } = await import("@tauri-apps/plugin-clipboard-manager");
   await writeText(text);
 }
+
+export async function recordUsage(commandId: string, action: string): Promise<void> {
+  const { invoke } = await import("@tauri-apps/api/core");
+  await invoke("record_usage", { commandId, action });
+}
+
+export async function getRecentCommands(limit = 10): Promise<Command[]> {
+  const { invoke } = await import("@tauri-apps/api/core");
+  return invoke<Command[]>("get_recent_commands", { limit });
+}
+
+export async function getTopCommands(limit = 10, days = 7): Promise<Command[]> {
+  const { invoke } = await import("@tauri-apps/api/core");
+  return invoke<Command[]>("get_top_commands", { limit, days });
+}
+
+export async function listenShowCommandPalette(
+  callback: () => void,
+): Promise<() => void> {
+  const { listen } = await import("@tauri-apps/api/event");
+  const unlisten = await listen("show-command-palette", () => callback());
+  return unlisten;
+}

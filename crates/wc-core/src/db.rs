@@ -1,7 +1,9 @@
 use std::collections::HashMap;
 use std::path::Path;
 
+use chrono::{Duration, Utc};
 use rusqlite::{params, Connection};
+use uuid::Uuid;
 
 use crate::error::{Result, WcError};
 use crate::models::{Command, Framework, PlaygroundSession, SimulateResult};
@@ -41,6 +43,17 @@ CREATE TABLE IF NOT EXISTS playground_sessions (
   transcript TEXT,
   updated_at TEXT
 );
+
+CREATE TABLE IF NOT EXISTS command_usage (
+  id TEXT PRIMARY KEY,
+  command_id TEXT NOT NULL REFERENCES commands(id),
+  action TEXT NOT NULL,
+  timestamp TEXT NOT NULL,
+  platform TEXT
+);
+
+CREATE INDEX IF NOT EXISTS idx_command_usage_command_id ON command_usage(command_id);
+CREATE INDEX IF NOT EXISTS idx_command_usage_timestamp ON command_usage(timestamp);
 ";
 
 pub struct CommandStore {
@@ -184,7 +197,8 @@ impl CommandStore {
             .conn
             .prepare("SELECT DISTINCT category FROM commands ORDER BY category")?;
         let rows = stmt.query_map([], |r| r.get(0))?;
-        rows.collect::<std::result::Result<Vec<_>, _>>().map_err(WcError::from)
+        rows.collect::<std::result::Result<Vec<_>, _>>()
+            .map_err(WcError::from)
     }
 
     pub fn list_frameworks(&self) -> Result<Vec<Framework>> {
@@ -199,7 +213,8 @@ impl CommandStore {
                 icon: r.get(3)?,
             })
         })?;
-        rows.collect::<std::result::Result<Vec<_>, _>>().map_err(WcError::from)
+        rows.collect::<std::result::Result<Vec<_>, _>>()
+            .map_err(WcError::from)
     }
 
     pub fn commands_by_framework(&self, framework_id: &str, limit: usize) -> Result<Vec<Command>> {
@@ -226,14 +241,18 @@ impl CommandStore {
              WHERE category = ?1 AND id != ?2
              LIMIT ?3",
         )?;
-        let rows = stmt.query_map(params![base.category, command_id, limit as i64], row_to_command)?;
+        let rows = stmt.query_map(
+            params![base.category, command_id, limit as i64],
+            row_to_command,
+        )?;
         rows.collect::<rusqlite::Result<Vec<_>>>()
             .map_err(WcError::from)
     }
 
     pub fn validate_command(&self, cmd: &str) -> Result<(u8, String)> {
         let lower = cmd.to_lowercase();
-        let danger = if lower.contains("rm -rf") || lower.contains("mkfs") || lower.contains(":(){") {
+        let danger = if lower.contains("rm -rf") || lower.contains("mkfs") || lower.contains(":(){")
+        {
             3u8
         } else if lower.contains("rm ") || lower.contains("chmod") {
             2u8
@@ -275,7 +294,55 @@ impl CommandStore {
                 updated_at: r.get(3)?,
             })
         })?;
-        rows.collect::<std::result::Result<Vec<_>, _>>().map_err(WcError::from)
+        rows.collect::<std::result::Result<Vec<_>, _>>()
+            .map_err(WcError::from)
+    }
+
+    pub fn record_usage(
+        &self,
+        command_id: &str,
+        action: &str,
+        platform: Option<&str>,
+    ) -> Result<()> {
+        let id = Uuid::new_v4().to_string();
+        let timestamp = Utc::now().to_rfc3339();
+        self.conn.execute(
+            "INSERT INTO command_usage (id, command_id, action, timestamp, platform)
+             VALUES (?1, ?2, ?3, ?4, ?5)",
+            params![id, command_id, action, timestamp, platform],
+        )?;
+        Ok(())
+    }
+
+    pub fn get_recent_commands(&self, limit: usize) -> Result<Vec<Command>> {
+        let mut stmt = self.conn.prepare(
+            "SELECT DISTINCT c.id, c.command, c.description, c.category, c.platform, c.danger_level, c.source, c.updated_at
+             FROM commands c
+             INNER JOIN command_usage cu ON cu.command_id = c.id
+             ORDER BY cu.timestamp DESC
+             LIMIT ?1",
+        )?;
+        let rows = stmt.query_map(params![limit as i64], row_to_command)?;
+        rows.collect::<rusqlite::Result<Vec<_>>>()
+            .map_err(WcError::from)
+    }
+
+    pub fn get_top_commands(&self, limit: usize, days: i64) -> Result<Vec<Command>> {
+        let cutoff = Utc::now() - Duration::days(days);
+        let cutoff_str = cutoff.to_rfc3339();
+        let mut stmt = self.conn.prepare(
+            "SELECT c.id, c.command, c.description, c.category, c.platform, c.danger_level, c.source, c.updated_at,
+                    COUNT(*) as usage_count
+             FROM commands c
+             INNER JOIN command_usage cu ON cu.command_id = c.id
+             WHERE cu.timestamp >= ?1
+             GROUP BY c.id
+             ORDER BY usage_count DESC
+             LIMIT ?2",
+        )?;
+        let rows = stmt.query_map(params![cutoff_str, limit as i64], row_to_command)?;
+        rows.collect::<rusqlite::Result<Vec<_>>>()
+            .map_err(WcError::from)
     }
 }
 
@@ -300,12 +367,18 @@ fn row_to_command(row: &rusqlite::Row) -> rusqlite::Result<Command> {
     })
 }
 
-pub fn simulate_with_store(store: &CommandStore, cmd: &str, vars: &HashMap<String, String>) -> SimulateResult {
+pub fn simulate_with_store(
+    store: &CommandStore,
+    cmd: &str,
+    vars: &HashMap<String, String>,
+) -> SimulateResult {
     let mut resolved = cmd.to_string();
     for (k, v) in vars {
         resolved = resolved.replace(&format!("{{{{{k}}}}}"), v);
         resolved = resolved.replace(&format!("${k}"), v);
     }
-    let (danger, _) = store.validate_command(&resolved).unwrap_or((0, String::new()));
+    let (danger, _) = store
+        .validate_command(&resolved)
+        .unwrap_or((0, String::new()));
     crate::simulator::simulate_command_inner(&resolved, danger)
 }

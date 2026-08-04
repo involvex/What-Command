@@ -1,12 +1,21 @@
 <script setup lang="ts">
 import { computed, onMounted, ref, watch } from "vue";
 import { useResearchStore } from "../stores/research";
-import { commandsByFramework } from "../composables/useTauri";
+import { useCommandsStore } from "../stores/commands";
+import { usePlaygroundStore } from "../stores/playground";
+import { useAiStore } from "../stores/ai";
+import {
+  commandsByFramework,
+  copyToClipboard,
+  recordUsage,
+} from "../composables/useTauri";
 import type { Command } from "../types";
 import CommandCard from "../components/CommandCard.vue";
-import { copyToClipboard } from "../composables/useTauri";
 
 const research = useResearchStore();
+const commands = useCommandsStore();
+const playground = usePlaygroundStore();
+const ai = useAiStore();
 const frameworkCommands = ref<Command[]>([]);
 
 onMounted(() => research.loadFrameworks());
@@ -23,6 +32,26 @@ watch(
 const selected = computed(() =>
   research.frameworks.find((f) => f.id === research.selectedId),
 );
+
+async function onCopy(cmd: string, id: string) {
+  await copyToClipboard(cmd);
+  void recordUsage(id, "copy");
+}
+
+function onFavorite(cmd: Command) {
+  commands.toggleFavorite(cmd);
+  void recordUsage(cmd.id, commands.isFavorite(cmd.id) ? "favorite" : "unfavorite");
+}
+
+function toPlayground(cmd: string, id: string) {
+  playground.insertCommand(cmd);
+  void recordUsage(id, "playground");
+}
+
+async function onExplain(cmd: string, id: string) {
+  await ai.explain(cmd);
+  void recordUsage(id, "explain");
+}
 </script>
 
 <template>
@@ -48,10 +77,10 @@ const selected = computed(() =>
         v-for="cmd in frameworkCommands"
         :key="cmd.id"
         :command="cmd"
-        @copy="copyToClipboard(cmd.command)"
-        @explain="() => {}"
-        @playground="() => {}"
-        @favorite="() => {}"
+        @copy="onCopy(cmd.command, cmd.id)"
+        @explain="onExplain(cmd.command, cmd.id)"
+        @playground="toPlayground(cmd.command, cmd.id)"
+        @favorite="onFavorite(cmd)"
       />
     </div>
   </section>
