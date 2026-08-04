@@ -2,6 +2,7 @@ import type {
   Command,
   CommandSuggestion,
   Framework,
+  Param,
   PlaygroundSession,
   SimulateResult,
 } from "../types";
@@ -130,6 +131,19 @@ export async function getRecentCommands(limit = 10): Promise<Command[]> {
 export async function getTopCommands(limit = 10, days = 7): Promise<Command[]> {
   const { invoke } = await import("@tauri-apps/api/core");
   return invoke<Command[]>("get_top_commands", { limit, days });
+}
+
+export async function extractParams(command: string): Promise<string[]> {
+  const { invoke } = await import("@tauri-apps/api/core");
+  return invoke<string[]>("extract_params", { command });
+}
+
+export async function updateCommandParams(
+  commandId: string,
+  params: Param[],
+): Promise<void> {
+  const { invoke } = await import("@tauri-apps/api/core");
+  await invoke("update_command_params", { commandId, params });
 }
 
 export async function listenShowCommandPalette(

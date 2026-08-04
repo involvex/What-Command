@@ -17,7 +17,8 @@ CREATE TABLE IF NOT EXISTS commands (
   platform TEXT,
   danger_level INTEGER DEFAULT 0,
   source TEXT,
-  updated_at TEXT
+  updated_at TEXT,
+  params TEXT
 );
 
 CREATE VIRTUAL TABLE IF NOT EXISTS commands_fts USING fts5(
@@ -68,6 +69,23 @@ impl CommandStore {
 
     pub fn init_schema(&self) -> Result<()> {
         self.conn.execute_batch(SCHEMA_SQL)?;
+
+        // Migration: Add params column if it doesn't exist
+        let needs_params: bool = self
+            .conn
+            .prepare("PRAGMA table_info(commands)")?
+            .query_map([], |row| {
+                let name: String = row.get(1)?;
+                Ok(name == "params")
+            })?
+            .filter_map(|r| r.ok())
+            .any(|found| found);
+
+        if !needs_params {
+            self.conn
+                .execute("ALTER TABLE commands ADD COLUMN params TEXT", [])?;
+        }
+
         Ok(())
     }
 
@@ -159,7 +177,7 @@ impl CommandStore {
 
         let pattern = format!("%{q}%");
         let mut stmt = self.conn.prepare(
-            "SELECT id, command, description, category, platform, danger_level, source, updated_at
+            "SELECT id, command, description, category, platform, danger_level, source, updated_at, params
              FROM commands
              WHERE command LIKE ?1 OR description LIKE ?1 OR category LIKE ?1
              ORDER BY danger_level ASC, command ASC
@@ -172,7 +190,7 @@ impl CommandStore {
 
     fn list_recent(&self, limit: usize) -> Result<Vec<Command>> {
         let mut stmt = self.conn.prepare(
-            "SELECT id, command, description, category, platform, danger_level, source, updated_at
+            "SELECT id, command, description, category, platform, danger_level, source, updated_at, params
              FROM commands ORDER BY updated_at DESC LIMIT ?1",
         )?;
         let rows = stmt.query_map(params![limit as i64], row_to_command)?;
@@ -182,7 +200,7 @@ impl CommandStore {
 
     pub fn get_by_id(&self, id: &str) -> Result<Option<Command>> {
         let mut stmt = self.conn.prepare(
-            "SELECT id, command, description, category, platform, danger_level, source, updated_at
+            "SELECT id, command, description, category, platform, danger_level, source, updated_at, params
              FROM commands WHERE id = ?1",
         )?;
         let mut rows = stmt.query(params![id])?;
@@ -219,7 +237,7 @@ impl CommandStore {
 
     pub fn commands_by_framework(&self, framework_id: &str, limit: usize) -> Result<Vec<Command>> {
         let mut stmt = self.conn.prepare(
-            "SELECT c.id, c.command, c.description, c.category, c.platform, c.danger_level, c.source, c.updated_at
+            "SELECT c.id, c.command, c.description, c.category, c.platform, c.danger_level, c.source, c.updated_at, c.params
              FROM commands c
              INNER JOIN command_frameworks cf ON cf.command_id = c.id
              WHERE cf.framework_id = ?1
@@ -236,7 +254,7 @@ impl CommandStore {
             return Ok(vec![]);
         };
         let mut stmt = self.conn.prepare(
-            "SELECT id, command, description, category, platform, danger_level, source, updated_at
+            "SELECT id, command, description, category, platform, danger_level, source, updated_at, params
              FROM commands
              WHERE category = ?1 AND id != ?2
              LIMIT ?3",
@@ -316,7 +334,7 @@ impl CommandStore {
 
     pub fn get_recent_commands(&self, limit: usize) -> Result<Vec<Command>> {
         let mut stmt = self.conn.prepare(
-            "SELECT DISTINCT c.id, c.command, c.description, c.category, c.platform, c.danger_level, c.source, c.updated_at
+            "SELECT DISTINCT c.id, c.command, c.description, c.category, c.platform, c.danger_level, c.source, c.updated_at, c.params
              FROM commands c
              INNER JOIN command_usage cu ON cu.command_id = c.id
              ORDER BY cu.timestamp DESC
@@ -331,7 +349,7 @@ impl CommandStore {
         let cutoff = Utc::now() - Duration::days(days);
         let cutoff_str = cutoff.to_rfc3339();
         let mut stmt = self.conn.prepare(
-            "SELECT c.id, c.command, c.description, c.category, c.platform, c.danger_level, c.source, c.updated_at,
+            "SELECT c.id, c.command, c.description, c.category, c.platform, c.danger_level, c.source, c.updated_at, c.params,
                     COUNT(*) as usage_count
              FROM commands c
              INNER JOIN command_usage cu ON cu.command_id = c.id
@@ -344,6 +362,14 @@ impl CommandStore {
         rows.collect::<rusqlite::Result<Vec<_>>>()
             .map_err(WcError::from)
     }
+
+    pub fn update_params(&self, command_id: &str, params_json: &str) -> Result<()> {
+        self.conn.execute(
+            "UPDATE commands SET params = ?1 WHERE id = ?2",
+            params![params_json, command_id],
+        )?;
+        Ok(())
+    }
 }
 
 fn row_to_command(row: &rusqlite::Row) -> rusqlite::Result<Command> {
@@ -355,6 +381,11 @@ fn row_to_command(row: &rusqlite::Row) -> rusqlite::Result<Command> {
             .filter(|s| !s.is_empty())
             .collect()
     });
+    let params: Option<Vec<crate::models::Param>> = row
+        .get::<_, Option<String>>(8)
+        .ok()
+        .flatten()
+        .and_then(|s| serde_json::from_str(&s).ok());
     Ok(Command {
         id: row.get(0)?,
         command: row.get(1)?,
@@ -364,6 +395,7 @@ fn row_to_command(row: &rusqlite::Row) -> rusqlite::Result<Command> {
         danger_level: row.get(5)?,
         source: row.get(6)?,
         updated_at: row.get(7)?,
+        params,
     })
 }
 

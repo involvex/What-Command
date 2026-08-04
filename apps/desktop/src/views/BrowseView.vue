@@ -57,9 +57,9 @@ async function onCopy(cmd: string, id: string) {
   void recordUsage(id, "copy");
 }
 
-function toPlayground(cmd: string, id: string) {
-  playground.insertCommand(cmd);
-  void recordUsage(id, "playground");
+function toPlayground(cmd: Command) {
+  playground.insertCommand(cmd.command, cmd);
+  void recordUsage(cmd.id, "playground");
 }
 
 async function onExplain(cmd: string, id: string) {
@@ -118,7 +118,7 @@ function onFavorite(cmd: Command) {
         :command="cmd"
         @copy="onCopy(cmd.command, cmd.id)"
         @explain="onExplain(cmd.command, cmd.id)"
-        @playground="toPlayground(cmd.command, cmd.id)"
+        @playground="toPlayground(cmd)"
         @favorite="onFavorite(cmd)"
       />
     </div>

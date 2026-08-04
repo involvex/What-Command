@@ -4,10 +4,13 @@ import { useLayout } from "./composables/useLayout";
 import MobileTabShell from "./layouts/MobileTabShell.vue";
 import DesktopShell from "./layouts/DesktopShell.vue";
 import CommandPalette from "./components/CommandPalette.vue";
+import { usePlaygroundStore } from "./stores/playground";
+import type { Command } from "./types";
 import { listenShowCommandPalette } from "./composables/useTauri";
 
 const { isMobile } = useLayout();
 const shell = computed(() => (isMobile.value ? MobileTabShell : DesktopShell));
+const playground = usePlaygroundStore();
 
 const paletteOpen = ref(false);
 const isOffline = ref(false);
@@ -53,6 +56,11 @@ onUnmounted(() => {
     window.removeEventListener("offline", offlineHandler);
   }
 });
+
+function handleSelect(cmd: Command) {
+  playground.insertCommand(cmd.command, cmd);
+  paletteOpen.value = false;
+}
 </script>
 
 <template>
@@ -60,7 +68,7 @@ onUnmounted(() => {
     <span>Offline mode — local search and AI may be limited.</span>
   </div>
   <component :is="shell" />
-  <CommandPalette v-model:visible="paletteOpen" />
+  <CommandPalette v-model:visible="paletteOpen" @select="handleSelect" />
 </template>
 
 <style>

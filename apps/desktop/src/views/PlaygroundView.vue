@@ -1,8 +1,41 @@
 <script setup lang="ts">
-import { usePlaygroundStore } from "../stores/playground";
+import { computed, ref, watch } from "vue";
+import ParameterModal from "../components/ParameterModal.vue";
 import TerminalEmulator from "../components/TerminalEmulator.vue";
+import { usePlaygroundStore } from "../stores/playground";
+import { extractParams } from "../composables/useTauri";
 
 const playground = usePlaygroundStore();
+
+const paramModalOpen = ref(false);
+const detectedParams = ref<string[]>([]);
+
+const hasParams = computed(() => {
+  return (
+    detectedParams.value.length > 0 || Object.keys(playground.variables).length > 0
+  );
+});
+
+watch(
+  () => playground.command,
+  async (newValue) => {
+    try {
+      detectedParams.value = await extractParams(newValue);
+    } catch {
+      detectedParams.value = [];
+    }
+  },
+  { immediate: true },
+);
+
+function openParamModal() {
+  paramModalOpen.value = true;
+}
+
+function onParamsSubmit(values: Record<string, string>) {
+  playground.variables = values;
+  playground.simulate();
+}
 </script>
 
 <template>
@@ -20,6 +53,14 @@ const playground = usePlaygroundStore();
         Try
       </button>
       <button
+        v-if="hasParams"
+        class="btn btn--ghost"
+        type="button"
+        @click="openParamModal"
+      >
+        Parameters
+      </button>
+      <button
         class="btn btn--ghost"
         type="button"
         @click="playground.clearTranscript()"
@@ -31,6 +72,13 @@ const playground = usePlaygroundStore();
     <p v-if="playground.lastResult?.blocked" class="warn">
       {{ playground.lastResult.explanation }}
     </p>
+
+    <ParameterModal
+      v-if="playground.currentCommand"
+      v-model:model-value="paramModalOpen"
+      :command="playground.currentCommand"
+      @submit="onParamsSubmit"
+    />
   </section>
 </template>
 

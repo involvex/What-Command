@@ -15,8 +15,8 @@ pub fn simulate_command(cmd: &str, vars: &HashMap<String, String>) -> SimulateRe
 pub fn simulate_command_inner(resolved: &str, danger: u8) -> SimulateResult {
     if danger >= 2 {
         return SimulateResult {
-            explanation: "This command is flagged as destructive. Simulation is blocked for safety."
-                .into(),
+            explanation:
+                "This command is flagged as destructive. Simulation is blocked for safety.".into(),
             sample_output: String::new(),
             exit_code: 1,
             blocked: true,
@@ -37,11 +37,7 @@ pub fn simulate_command_inner(resolved: &str, danger: u8) -> SimulateResult {
             0,
         )
     } else if lower.starts_with("echo ") {
-        (
-            "Prints text to stdout (simulated).",
-            &resolved[5..],
-            0,
-        )
+        ("Prints text to stdout (simulated).", &resolved[5..], 0)
     } else if lower.starts_with("pwd") {
         (
             "Prints working directory (simulated).",

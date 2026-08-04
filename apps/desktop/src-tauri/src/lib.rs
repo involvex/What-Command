@@ -405,6 +405,35 @@ fn get_top_commands(
         .map_err(|e| e.to_string())
 }
 
+#[tauri::command]
+fn update_command_params(
+    state: State<'_, AppState>,
+    command_id: String,
+    params: Vec<wc_core::models::Param>,
+) -> Result<(), String> {
+    let params_json = serde_json::to_string(&params).map_err(|e| e.to_string())?;
+    state
+        .store
+        .lock()
+        .map_err(|e| e.to_string())?
+        .update_params(&command_id, &params_json)
+        .map_err(|e| e.to_string())
+}
+
+#[tauri::command]
+fn extract_params(command: String) -> Vec<String> {
+    let mut found = Vec::new();
+    let re = regex::Regex::new(r"\{\{(\w[\w-]*)\}").unwrap();
+    for cap in re.captures_iter(&command) {
+        if let Some(name) = cap.get(1) {
+            found.push(name.as_str().to_string());
+        }
+    }
+    found.sort();
+    found.dedup();
+    found
+}
+
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
     let mut builder = tauri::Builder::default()
@@ -455,6 +484,8 @@ pub fn run() {
             record_usage,
             get_recent_commands,
             get_top_commands,
+            update_command_params,
+            extract_params,
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");
