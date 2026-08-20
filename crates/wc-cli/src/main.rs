@@ -1,5 +1,6 @@
 use clap::{CommandFactory, Parser, Subcommand};
 use clap_complete::Shell;
+use std::io::Write;
 use std::path::PathBuf;
 use wc_ai::build_router;
 use wc_core::config::{ensure_db_from_seed, load_config, save_config};
@@ -39,6 +40,11 @@ enum Commands {
         #[command(subcommand)]
         command: ConfigCmd,
     },
+    /// Download or list on-device GGUF models
+    Model {
+        #[command(subcommand)]
+        command: ModelCmd,
+    },
     /// Generate shell completions
     Completions {
         /// Shell to generate completions for
@@ -53,6 +59,22 @@ enum ConfigCmd {
     Path,
     /// Print the config directory
     Dir,
+}
+
+#[derive(Subcommand)]
+enum ModelCmd {
+    /// Download a GGUF model into ~/.config/what-command/models/
+    ///
+    /// Defaults to the configured local_model_id (gemma-2b-it-q4).
+    Download {
+        /// Model id (e.g. gemma-2b-it-q4). Omit for the default.
+        id: Option<String>,
+        /// Skip if a file with matching size already exists
+        #[arg(short, long)]
+        skip_existing: bool,
+    },
+    /// List known models and any already downloaded to the models dir
+    List,
 }
 
 #[derive(Subcommand)]
@@ -302,6 +324,9 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         Commands::Config { command } => {
             handle_config(&command)?;
         }
+        Commands::Model { command } => {
+            handle_model(&command).await?;
+        }
         Commands::Completions { shell } => {
             use clap_complete::generate;
             let mut cmd = Cli::command();
@@ -437,6 +462,182 @@ fn handle_config(cmd: &ConfigCmd) -> Result<(), Box<dyn std::error::Error>> {
         }
     }
     Ok(())
+}
+
+/// Known on-device GGUF models and their download URLs.
+/// Extend here when adding new bundled defaults. Env `WC_MODEL_BASE_URL`
+/// overrides the host (useful behind mirrors).
+const MODEL_URLS: &[(&str, &str, &str)] = &[
+    ("gemma-2b-it-q4", "google/gemma-2b-it-q4_0-gguf", "gemma-2b-it-q4_0.gguf"),
+    ("gemma-2b-it-q4_0", "google/gemma-2b-it-q4_0-gguf", "gemma-2b-it-q4_0.gguf"),
+    ("gemma-2b-it-q8_0", "google/gemma-2b-it-q8_0-gguf", "gemma-2b-it-q8_0.gguf"),
+];
+
+fn model_dir() -> Result<std::path::PathBuf, Box<dyn std::error::Error>> {
+    let dir = wc_core::config::config_dir()?.join("models");
+    std::fs::create_dir_all(&dir)?;
+    Ok(dir)
+}
+
+fn model_url(id: &str) -> Option<String> {
+    if let Some(entry) = MODEL_URLS.iter().find(|(k, _, _)| *k == id) {
+        let host = std::env::var("WC_MODEL_BASE_URL")
+            .ok()
+            .filter(|s| !s.is_empty())
+            .unwrap_or_else(|| "https://huggingface.co".to_string());
+        return Some(format!(
+            "{}/{}/resolve/main/{}",
+            host.trim_end_matches('/'),
+            entry.1,
+            entry.2
+        ));
+    }
+    // Allow a raw URL or a local path to be passed directly.
+    if id.starts_with("http://") || id.starts_with("https://") || std::path::Path::new(id).is_file()
+    {
+        return Some(id.to_string());
+    }
+    None
+}
+
+fn human_bytes(n: u64) -> String {
+    const UNITS: &[&str] = &["B", "KiB", "MiB", "GiB", "TiB"];
+    if n == 0 {
+        return "0 B".into();
+    }
+    let mut size = n as f64;
+    let mut idx = 0;
+    while size >= 1024.0 && idx < UNITS.len() - 1 {
+        size /= 1024.0;
+        idx += 1;
+    }
+    if idx == 0 {
+        format!("{:.0} {}", size, UNITS[idx])
+    } else {
+        format!("{:.1} {}", size, UNITS[idx])
+    }
+}
+
+async fn handle_model(cmd: &ModelCmd) -> Result<(), Box<dyn std::error::Error>> {
+    match cmd {
+        ModelCmd::Download { id, skip_existing } => {
+            let model_id = id.clone().unwrap_or_else(default_model_id);
+            let url = match model_url(&model_id) {
+                Some(u) => u,
+                None => {
+                    eprintln!(
+                        "unknown model '{model_id}'. Known: {}",
+                        MODEL_URLS.iter().map(|(k, _, _)| *k).collect::<Vec<_>>().join(", ")
+                    );
+                    eprintln!("or pass a full URL / local file path.");
+                    std::process::exit(2);
+                }
+            };
+            download_model(&model_id, &url, *skip_existing).await?;
+        }
+        ModelCmd::List => {
+            let dir = model_dir()?;
+            println!("models dir: {}", dir.display());
+            println!("known models:");
+            for (k, _, file) in MODEL_URLS {
+                let local = dir.join(format!("{k}.gguf"));
+                let size = if local.is_file() {
+                    std::fs::metadata(&local)
+                        .ok()
+                        .map(|m| human_bytes(m.len()))
+                        .unwrap_or_else(|| "<unknown>".into())
+                } else {
+                    "<not downloaded>".into()
+                };
+                println!("  {k}\t{size}\t({file})");
+            }
+            if dir.is_dir() {
+                for entry in std::fs::read_dir(&dir)? {
+                    let entry = entry?;
+                    let name = entry.file_name();
+                    let name = name.to_string_lossy();
+                    if name.ends_with(".gguf")
+                        && !MODEL_URLS.iter().any(|(k, _, _)| name == format!("{k}.gguf"))
+                    {
+                        let size = entry
+                            .metadata()
+                            .ok()
+                            .map(|m| human_bytes(m.len()))
+                            .unwrap_or_else(|| "?".into());
+                        println!("  {name} *\t{size}");
+                    }
+                }
+            }
+        }
+    }
+    Ok(())
+}
+
+async fn download_model(
+    model_id: &str,
+    url: &str,
+    skip_existing: bool,
+) -> Result<(), Box<dyn std::error::Error>> {
+    let dir = model_dir()?;
+    let dest = dir.join(format!("{model_id}.gguf"));
+
+    let client = reqwest::Client::builder()
+        .user_agent(format!("wc-cli/{}", env!("CARGO_PKG_VERSION")))
+        .build()?;
+
+    let mut resp = client.get(url).send().await?;
+    let status = resp.status();
+    if !status.is_success() {
+        eprintln!("HTTP {status} for {url}");
+        std::process::exit(1);
+    }
+    let total = resp
+        .content_length()
+        .unwrap_or(0);
+    if skip_existing && dest.exists() {
+        if let Ok(meta) = dest.metadata() {
+            if total == 0 || meta.len() == total {
+                println!("{model_id}: already downloaded at {}", dest.display());
+                return Ok(());
+            }
+        }
+    }
+
+    let tmp = dir.join(format!(".{model_id}.gguf.part"));
+    let mut file = std::fs::File::create(&tmp)?;
+    let mut downloaded: u64 = 0;
+    while let Some(chunk) = resp.chunk().await? {
+        file.write_all(&chunk)?;
+        downloaded += chunk.len() as u64;
+        if total > 0 {
+            let pct = downloaded as f64 / total as f64 * 100.0;
+            eprintln!(
+                "\r  {model_id}: {}/{} ({:.0}%)    ",
+                human_bytes(downloaded),
+                human_bytes(total),
+                pct
+            );
+        } else {
+            eprintln!("\r  {model_id}: {} downloaded    ", human_bytes(downloaded));
+        }
+    }
+    eprintln!();
+    file.flush()?;
+    std::fs::rename(&tmp, &dest)?;
+    println!("{model_id}: downloaded {} to {}", human_bytes(downloaded), dest.display());
+    println!(
+        "enable with: wc settings set local_model_id {}\n   or:        wc settings set local_model_path {}",
+        model_id, dest.display()
+    );
+    Ok(())
+}
+
+fn default_model_id() -> String {
+    let config = load_config().ok();
+    config
+        .and_then(|c| c.settings.local_model_id.clone())
+        .filter(|s| !s.is_empty())
+        .unwrap_or_else(|| "gemma-2b-it-q4".to_string())
 }
 
 fn normalize_value(key: &str, value: &str) -> String {
@@ -719,5 +920,44 @@ mod tests {
         assert_eq!(path.file_name().unwrap().to_str().unwrap(), "config.toml");
         // the last path component is the "what-command" directory
         assert_eq!(dir.file_name().unwrap().to_str().unwrap(), "what-command");
+    }
+
+    #[test]
+    fn model_url_known() {
+        let u = model_url("gemma-2b-it-q4").expect("gemma-2b-it-q4 known");
+        assert!(u.ends_with("google/gemma-2b-it-q4_0-gguf/resolve/main/gemma-2b-it-q4_0.gguf"));
+    }
+
+    #[test]
+    fn model_url_respects_base_env() {
+        std::env::set_var("WC_MODEL_BASE_URL", "https://mirror.example/hf");
+        let u = model_url("gemma-2b-it-q4").expect("url from mirror");
+        assert!(u.starts_with("https://mirror.example/hf/"));
+        assert!(u.ends_with("google/gemma-2b-it-q4_0-gguf/resolve/main/gemma-2b-it-q4_0.gguf"));
+        std::env::remove_var("WC_MODEL_BASE_URL");
+    }
+
+    #[test]
+    fn model_url_accepts_raw_url_and_local_path() {
+        assert!(model_url("https://example.com/x.gguf").is_some());
+        // local file path
+        let tmp = std::env::temp_dir().join("wc-gguf-dummy.gguf");
+        std::fs::write(&tmp, b"").unwrap();
+        assert!(model_url(tmp.to_string_lossy().as_ref()).is_some());
+        std::fs::remove_file(&tmp).ok();
+    }
+
+    #[test]
+    fn model_url_unknown_is_none() {
+        std::env::remove_var("WC_MODEL_BASE_URL");
+        assert!(model_url("no-such-model").is_none());
+    }
+
+    #[test]
+    fn default_model_id_is_known_when_unset() {
+        std::env::remove_var("WC_MODEL_BASE_URL");
+        // AppSettings defaults may be empty in a fresh env; ensure a sane default.
+        let id = default_model_id();
+        assert!(!id.is_empty());
     }
 }
