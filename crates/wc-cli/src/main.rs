@@ -468,9 +468,9 @@ fn handle_config(cmd: &ConfigCmd) -> Result<(), Box<dyn std::error::Error>> {
 /// Extend here when adding new bundled defaults. Env `WC_MODEL_BASE_URL`
 /// overrides the host (useful behind mirrors).
 const MODEL_URLS: &[(&str, &str, &str)] = &[
-    ("gemma-2b-it-q4", "google/gemma-2b-it-q4_0-gguf", "gemma-2b-it-q4_0.gguf"),
-    ("gemma-2b-it-q4_0", "google/gemma-2b-it-q4_0-gguf", "gemma-2b-it-q4_0.gguf"),
-    ("gemma-2b-it-q8_0", "google/gemma-2b-it-q8_0-gguf", "gemma-2b-it-q8_0.gguf"),
+    ("gemma-2b-it-q4", "unsloth/gemma-2b-it-GGUF", "gemma-2b-it-Q4_K_M.gguf"),
+    ("gemma-2b-it-q4_0", "unsloth/gemma-2b-it-GGUF", "gemma-2b-it-Q4_K_M.gguf"),
+    ("gemma-2b-it-q8_0", "unsloth/gemma-2b-it-GGUF", "gemma-2b-it-Q8_0.gguf"),
 ];
 
 fn model_dir() -> Result<std::path::PathBuf, Box<dyn std::error::Error>> {
@@ -480,11 +480,14 @@ fn model_dir() -> Result<std::path::PathBuf, Box<dyn std::error::Error>> {
 }
 
 fn model_url(id: &str) -> Option<String> {
+    model_url_with_base(id, std::env::var("WC_MODEL_BASE_URL").ok().as_deref())
+}
+
+fn model_url_with_base(id: &str, base_url: Option<&str>) -> Option<String> {
     if let Some(entry) = MODEL_URLS.iter().find(|(k, _, _)| *k == id) {
-        let host = std::env::var("WC_MODEL_BASE_URL")
-            .ok()
+        let host = base_url
             .filter(|s| !s.is_empty())
-            .unwrap_or_else(|| "https://huggingface.co".to_string());
+            .unwrap_or("https://huggingface.co");
         return Some(format!(
             "{}/{}/resolve/main/{}",
             host.trim_end_matches('/'),
@@ -925,16 +928,14 @@ mod tests {
     #[test]
     fn model_url_known() {
         let u = model_url("gemma-2b-it-q4").expect("gemma-2b-it-q4 known");
-        assert!(u.ends_with("google/gemma-2b-it-q4_0-gguf/resolve/main/gemma-2b-it-q4_0.gguf"));
+        assert!(u.ends_with("unsloth/gemma-2b-it-GGUF/resolve/main/gemma-2b-it-Q4_K_M.gguf"));
     }
 
     #[test]
     fn model_url_respects_base_env() {
-        std::env::set_var("WC_MODEL_BASE_URL", "https://mirror.example/hf");
-        let u = model_url("gemma-2b-it-q4").expect("url from mirror");
+        let u = model_url_with_base("gemma-2b-it-q4", Some("https://mirror.example/hf")).expect("url from mirror");
         assert!(u.starts_with("https://mirror.example/hf/"));
-        assert!(u.ends_with("google/gemma-2b-it-q4_0-gguf/resolve/main/gemma-2b-it-q4_0.gguf"));
-        std::env::remove_var("WC_MODEL_BASE_URL");
+        assert!(u.ends_with("unsloth/gemma-2b-it-GGUF/resolve/main/gemma-2b-it-Q4_K_M.gguf"));
     }
 
     #[test]
