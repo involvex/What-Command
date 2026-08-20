@@ -1,6 +1,11 @@
 [toolchain]
-# Tauri on Windows requires MSVC; GNU hits "export ordinal too large" linking desktop_lib.dll.
-channel = "stable-x86_64-pc-windows-msvc"
+# CI runs on ubuntu-latest; a Windows MSVC toolchain triple is not a valid
+# host channel and makes `cargo` fail with "target tuple in channel name".
+# Use the host-agnostic `stable` channel and install the MSVC target
+# separately where the Tauri Windows desktop build is required (see AGENTS.md:
+# Windows desktop requires the MSVC toolchain; GNU hits "export ordinal too
+# large" when linking desktop_lib.dll).
+channel = "stable"
 targets = [
   "x86_64-pc-windows-msvc",
   "aarch64-linux-android",

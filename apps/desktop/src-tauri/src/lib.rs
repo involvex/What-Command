@@ -5,6 +5,7 @@ use std::path::PathBuf;
 use std::path::Path;
 use std::sync::Mutex;
 
+use serde::{Deserialize, Serialize};
 use tauri::{Manager, State};
 use wc_ai::build_router;
 use wc_core::config::{
@@ -349,13 +350,159 @@ fn list_playground_sessions(
         .map_err(|e| e.to_string())
 }
 
+fn current_platform() -> &'static str {
+    if cfg!(target_os = "android") {
+        "android"
+    } else if cfg!(target_os = "windows") {
+        "windows"
+    } else if cfg!(target_os = "macos") {
+        "macos"
+    } else if cfg!(target_os = "linux") {
+        "linux"
+    } else {
+        "unknown"
+    }
+}
+
+#[tauri::command]
+fn record_usage(
+    state: State<'_, AppState>,
+    command_id: String,
+    action: String,
+) -> Result<(), String> {
+    let platform = current_platform();
+    state
+        .store
+        .lock()
+        .map_err(|e| e.to_string())?
+        .record_usage(&command_id, &action, Some(platform))
+        .map_err(|e| e.to_string())
+}
+
+#[tauri::command]
+fn get_recent_commands(
+    state: State<'_, AppState>,
+    limit: usize,
+) -> Result<Vec<Command>, String> {
+    state
+        .store
+        .lock()
+        .map_err(|e| e.to_string())?
+        .get_recent_commands(limit)
+        .map_err(|e| e.to_string())
+}
+
+#[tauri::command]
+fn get_top_commands(
+    state: State<'_, AppState>,
+    limit: usize,
+    days: i64,
+) -> Result<Vec<Command>, String> {
+    state
+        .store
+        .lock()
+        .map_err(|e| e.to_string())?
+        .get_top_commands(limit, days)
+        .map_err(|e| e.to_string())
+}
+
+#[tauri::command]
+fn search_commands_filtered(
+    state: State<'_, AppState>,
+    query: String,
+    limit: usize,
+    category: Option<String>,
+    platform: Option<String>,
+    source: Option<String>,
+    danger_max: Option<u8>,
+) -> Result<Vec<Command>, String> {
+    state
+        .store
+        .lock()
+        .map_err(|e| e.to_string())?
+        .search_with_filters(
+            &query,
+            limit,
+            category.as_deref(),
+            platform.as_deref(),
+            source.as_deref(),
+            danger_max,
+        )
+        .map_err(|e| e.to_string())
+}
+
+#[tauri::command]
+fn get_filter_options(state: State<'_, AppState>) -> Result<FilterOptions, String> {
+    let store = state.store.lock().map_err(|e| e.to_string())?;
+    Ok(FilterOptions {
+        categories: store.distinct_categories().map_err(|e| e.to_string())?,
+        platforms: store.distinct_platforms().map_err(|e| e.to_string())?,
+        sources: store.distinct_sources().map_err(|e| e.to_string())?,
+    })
+}
+
+#[derive(Serialize, Deserialize)]
+struct FilterOptions {
+    categories: Vec<String>,
+    platforms: Vec<String>,
+    sources: Vec<String>,
+}
+
+#[tauri::command]
+fn update_command_params(
+    state: State<'_, AppState>,
+    command_id: String,
+    params: Vec<wc_core::models::Param>,
+) -> Result<(), String> {
+    let params_json = serde_json::to_string(&params).map_err(|e| e.to_string())?;
+    state
+        .store
+        .lock()
+        .map_err(|e| e.to_string())?
+        .update_params(&command_id, &params_json)
+        .map_err(|e| e.to_string())
+}
+
+#[tauri::command]
+fn extract_params(command: String) -> Vec<String> {
+    let mut found = Vec::new();
+    let re = regex::Regex::new(r"\{\{(\w[\w-]*)\}").unwrap();
+    for cap in re.captures_iter(&command) {
+        if let Some(name) = cap.get(1) {
+            found.push(name.as_str().to_string());
+        }
+    }
+    found.sort();
+    found.dedup();
+    found
+}
+
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
-    tauri::Builder::default()
+    let mut builder = tauri::Builder::default()
         .plugin(tauri_plugin_clipboard_manager::init())
         .plugin(tauri_plugin_dialog::init())
         .plugin(tauri_plugin_fs::init())
         .plugin(tauri_plugin_store::Builder::new().build())
+        .plugin(tauri_plugin_deep_link::init());
+
+    #[cfg(not(any(target_os = "android", target_os = "ios")))]
+    {
+        let plugin = tauri_plugin_global_shortcut::Builder::new()
+            .with_shortcut("CommandOrControl+K")
+            .expect("failed to parse shortcut")
+            .with_handler(|app, _shortcut, event| {
+                use tauri::Emitter;
+                use tauri_plugin_global_shortcut::ShortcutState;
+                if event.state == ShortcutState::Pressed {
+                    let _ = app.emit("show-command-palette", ());
+                }
+            })
+            .build();
+        builder = builder.plugin(plugin);
+    }
+
+    builder
         .setup(|app| {
             let state = init_state(app.handle())?;
             app.manage(state);
@@ -363,6 +510,8 @@ pub fn run() {
         })
         .invoke_handler(tauri::generate_handler![
             search_commands,
+            search_commands_filtered,
+            get_filter_options,
             get_command,
             list_categories,
             list_frameworks,
@@ -377,6 +526,11 @@ pub fn run() {
             import_gguf_model,
             save_playground_session,
             list_playground_sessions,
+            record_usage,
+            get_recent_commands,
+            get_top_commands,
+            update_command_params,
+            extract_params,
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");

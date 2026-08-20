@@ -1,10 +1,11 @@
 import { defineStore } from "pinia";
 import { ref } from "vue";
-import type { SimulateResult } from "../types";
+import type { Command, SimulateResult } from "../types";
 import * as api from "../composables/useTauri";
 
 export const usePlaygroundStore = defineStore("playground", () => {
   const command = ref("echo 'Hello from What Command'");
+  const currentCommand = ref<Command | null>(null);
   const transcript = ref<string[]>([]);
   const lastResult = ref<SimulateResult | null>(null);
   const variables = ref<Record<string, string>>({});
@@ -21,8 +22,10 @@ export const usePlaygroundStore = defineStore("playground", () => {
     return result;
   }
 
-  function insertCommand(text: string) {
+  function insertCommand(text: string, cmd?: Command) {
     command.value = text;
+    currentCommand.value = cmd ?? null;
+    variables.value = {};
   }
 
   function clearTranscript() {
@@ -32,6 +35,7 @@ export const usePlaygroundStore = defineStore("playground", () => {
 
   return {
     command,
+    currentCommand,
     transcript,
     lastResult,
     variables,

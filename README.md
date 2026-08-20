@@ -39,6 +39,29 @@ wc explain "kubectl get pods"
 wc update
 ```
 
+For local development, `bun link` exposes `wc` globally in dev mode (runs via `cargo run`, so source changes are picked up automatically). Remove it with `bun unlink`.
+
+### Configuration
+
+`wc settings` manages `~/.config/what-command/config.toml` (AI providers, API keys, models):
+
+```bash
+wc settings                  # same as 'wc settings list'
+wc settings list              # summarize settings (secrets masked)
+wc settings list --json       # JSON output (secrets masked; add --raw to include them)
+wc settings show ai_provider  # print one value (--raw to reveal a secret)
+wc settings set ai_provider local_llm      # aliases: opencode|kilo|local|openai
+wc settings set opencode_api_key sk-...    # secrets are masked in output
+wc settings set ai_model null             # empty/"null" clears the key
+wc settings edit            # open the config file in $EDITOR
+wc settings reset           # restore defaults
+wc settings env             # show env vars (OPENCODE_API_KEY, KILO_API_KEY, ...) that override config
+wc config path              # print config.toml path
+wc config dir               # print config directory
+```
+
+Env vars `OPENCODE_API_KEY`, `KILO_API_KEY`, `LOCAL_GGUF_PATH`, `OPENAI_COMPAT_BASE_URL`, and `OPENAI_COMPAT_API_KEY` take precedence over `config.toml`.
+
 Set `OPENCODE_API_KEY` or `KILO_API_KEY` (see `.env.example`) for live AI. For on-device GGUF inference, pick a `.gguf` file in Settings (copied to app storage on Android) and build with the `local-llm` feature — included in `bun run android:apk` and `bun run dev:local`. Host `cargo build --features local-llm` does **not** affect the Android APK. Use `bun run android:apk` (sets `ANDROID_NDK`, bindgen sysroot, and `local-llm`) or wrap manual builds with `node scripts/android-ndk-env.mjs …`.
 
 ## Project layout

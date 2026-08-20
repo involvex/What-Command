@@ -1,3 +1,11 @@
+export interface Param {
+  key: string;
+  label: string;
+  type: "string" | "path" | "choice" | "number";
+  default?: string | null;
+  choices?: string[] | null;
+}
+
 export interface Command {
   id: string;
   command: string;
@@ -7,6 +15,13 @@ export interface Command {
   danger_level: number;
   source: string;
   updated_at: string;
+  params?: Param[] | null;
+}
+
+export interface FilterOptions {
+  categories: string[];
+  platforms: string[];
+  sources: string[];
 }
 
 export interface Framework {

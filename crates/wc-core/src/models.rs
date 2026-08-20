@@ -10,6 +10,28 @@ pub struct Command {
     pub danger_level: u8,
     pub source: String,
     pub updated_at: String,
+    #[serde(default)]
+    pub params: Option<Vec<Param>>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct Param {
+    pub key: String,
+    pub label: String,
+    #[serde(rename = "type")]
+    pub param_type: ParamType,
+    #[serde(default)]
+    pub default: Option<String>,
+    #[serde(default)]
+    pub choices: Option<Vec<String>>,
+}
+
+#[derive(Debug, Clone, Copy, Serialize, Deserialize)]
+pub enum ParamType {
+    String,
+    Path,
+    Choice,
+    Number,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -48,6 +70,15 @@ pub struct PlaygroundSession {
     pub command: String,
     pub transcript: String,
     pub updated_at: String,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct CommandUsage {
+    pub id: String,
+    pub command_id: String,
+    pub action: String,
+    pub timestamp: String,
+    pub platform: Option<String>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]

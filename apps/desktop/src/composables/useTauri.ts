@@ -2,13 +2,46 @@ import type {
   Command,
   CommandSuggestion,
   Framework,
+  Param,
   PlaygroundSession,
   SimulateResult,
 } from "../types";
 
+export interface FilterOptions {
+  categories: string[];
+  platforms: string[];
+  sources: string[];
+}
+
 export async function searchCommands(query: string, limit = 50): Promise<Command[]> {
   const { invoke } = await import("@tauri-apps/api/core");
   return invoke<Command[]>("search_commands", { query, limit });
+}
+
+export async function searchCommandsFiltered(
+  query: string,
+  limit = 50,
+  options?: {
+    category?: string;
+    platform?: string;
+    source?: string;
+    dangerMax?: number;
+  },
+): Promise<Command[]> {
+  const { invoke } = await import("@tauri-apps/api/core");
+  return invoke<Command[]>("search_commands_filtered", {
+    query,
+    limit,
+    category: options?.category ?? null,
+    platform: options?.platform ?? null,
+    source: options?.source ?? null,
+    dangerMax: options?.dangerMax ?? null,
+  });
+}
+
+export async function getFilterOptions(): Promise<FilterOptions> {
+  const { invoke } = await import("@tauri-apps/api/core");
+  return invoke<FilterOptions>("get_filter_options");
 }
 
 export async function getCommand(id: string): Promise<Command | null> {
@@ -115,4 +148,40 @@ export async function listPlaygroundSessions(limit = 20): Promise<PlaygroundSess
 export async function copyToClipboard(text: string): Promise<void> {
   const { writeText } = await import("@tauri-apps/plugin-clipboard-manager");
   await writeText(text);
+}
+
+export async function recordUsage(commandId: string, action: string): Promise<void> {
+  const { invoke } = await import("@tauri-apps/api/core");
+  await invoke("record_usage", { commandId, action });
+}
+
+export async function getRecentCommands(limit = 10): Promise<Command[]> {
+  const { invoke } = await import("@tauri-apps/api/core");
+  return invoke<Command[]>("get_recent_commands", { limit });
+}
+
+export async function getTopCommands(limit = 10, days = 7): Promise<Command[]> {
+  const { invoke } = await import("@tauri-apps/api/core");
+  return invoke<Command[]>("get_top_commands", { limit, days });
+}
+
+export async function extractParams(command: string): Promise<string[]> {
+  const { invoke } = await import("@tauri-apps/api/core");
+  return invoke<string[]>("extract_params", { command });
+}
+
+export async function updateCommandParams(
+  commandId: string,
+  params: Param[],
+): Promise<void> {
+  const { invoke } = await import("@tauri-apps/api/core");
+  await invoke("update_command_params", { commandId, params });
+}
+
+export async function listenShowCommandPalette(
+  callback: () => void,
+): Promise<() => void> {
+  const { listen } = await import("@tauri-apps/api/event");
+  const unlisten = await listen("show-command-palette", () => callback());
+  return unlisten;
 }

@@ -1,7 +1,9 @@
 use std::collections::HashMap;
 use std::path::Path;
 
+use chrono::{Duration, Utc};
 use rusqlite::{params, Connection};
+use uuid::Uuid;
 
 use crate::error::{Result, WcError};
 use crate::models::{Command, Framework, PlaygroundSession, SimulateResult};
@@ -15,7 +17,8 @@ CREATE TABLE IF NOT EXISTS commands (
   platform TEXT,
   danger_level INTEGER DEFAULT 0,
   source TEXT,
-  updated_at TEXT
+  updated_at TEXT,
+  params TEXT
 );
 
 CREATE VIRTUAL TABLE IF NOT EXISTS commands_fts USING fts5(
@@ -41,6 +44,17 @@ CREATE TABLE IF NOT EXISTS playground_sessions (
   transcript TEXT,
   updated_at TEXT
 );
+
+CREATE TABLE IF NOT EXISTS command_usage (
+  id TEXT PRIMARY KEY,
+  command_id TEXT NOT NULL REFERENCES commands(id),
+  action TEXT NOT NULL,
+  timestamp TEXT NOT NULL,
+  platform TEXT
+);
+
+CREATE INDEX IF NOT EXISTS idx_command_usage_command_id ON command_usage(command_id);
+CREATE INDEX IF NOT EXISTS idx_command_usage_timestamp ON command_usage(timestamp);
 ";
 
 pub struct CommandStore {
@@ -55,6 +69,23 @@ impl CommandStore {
 
     pub fn init_schema(&self) -> Result<()> {
         self.conn.execute_batch(SCHEMA_SQL)?;
+
+        // Migration: Add params column if it doesn't exist
+        let needs_params: bool = self
+            .conn
+            .prepare("PRAGMA table_info(commands)")?
+            .query_map([], |row| {
+                let name: String = row.get(1)?;
+                Ok(name == "params")
+            })?
+            .filter_map(|r| r.ok())
+            .any(|found| found);
+
+        if !needs_params {
+            self.conn
+                .execute("ALTER TABLE commands ADD COLUMN params TEXT", [])?;
+        }
+
         Ok(())
     }
 
@@ -146,10 +177,16 @@ impl CommandStore {
 
         let pattern = format!("%{q}%");
         let mut stmt = self.conn.prepare(
-            "SELECT id, command, description, category, platform, danger_level, source, updated_at
+            "SELECT id, command, description, category, platform, danger_level, source, updated_at, params,
+                    CASE
+                      WHEN command LIKE ?1 THEN 0
+                      WHEN description LIKE ?1 THEN 1
+                      WHEN category LIKE ?1 THEN 2
+                      ELSE 3
+                    END AS rank
              FROM commands
              WHERE command LIKE ?1 OR description LIKE ?1 OR category LIKE ?1
-             ORDER BY danger_level ASC, command ASC
+             ORDER BY rank ASC, danger_level ASC, command ASC
              LIMIT ?2",
         )?;
         let rows = stmt.query_map(params![pattern, limit as i64], row_to_command)?;
@@ -157,9 +194,138 @@ impl CommandStore {
             .map_err(WcError::from)
     }
 
+    pub fn search_with_filters(
+        &self,
+        query: &str,
+        limit: usize,
+        category: Option<&str>,
+        platform: Option<&str>,
+        source: Option<&str>,
+        danger_max: Option<u8>,
+    ) -> Result<Vec<Command>> {
+        let q = query.trim();
+        if q.is_empty() {
+            return self.list_filtered(limit, category, platform, source, danger_max);
+        }
+
+        let pattern = format!("%{q}%");
+        let cat_val = category.filter(|s| !s.is_empty()).unwrap_or("");
+        let plat_val = platform.filter(|s| !s.is_empty()).unwrap_or("");
+        let src_val = source.filter(|s| !s.is_empty()).unwrap_or("");
+        let danger_val = danger_max.unwrap_or(255);
+
+        let mut stmt = self.conn.prepare(
+            "SELECT id, command, description, category, platform, danger_level, source, updated_at, params,
+                    CASE
+                      WHEN command LIKE ?1 THEN 0
+                      WHEN description LIKE ?1 THEN 1
+                      WHEN category LIKE ?1 THEN 2
+                      ELSE 3
+                    END AS rank
+             FROM commands
+             WHERE (command LIKE ?1 OR description LIKE ?1 OR category LIKE ?1)
+               AND (?2 = '' OR category = ?2)
+               AND (?3 = '' OR platform LIKE ?3)
+               AND (?4 = '' OR source = ?4)
+               AND (danger_level <= ?5)
+             ORDER BY rank ASC, danger_level ASC, command ASC
+             LIMIT ?6",
+        )?;
+        let rows = stmt.query_map(
+            rusqlite::params![
+                pattern,
+                cat_val,
+                format!("%{plat_val}%"),
+                src_val,
+                danger_val,
+                limit as i64
+            ],
+            row_to_command,
+        )?;
+        rows.collect::<rusqlite::Result<Vec<_>>>()
+            .map_err(WcError::from)
+    }
+
+    pub fn list_filtered(
+        &self,
+        limit: usize,
+        category: Option<&str>,
+        platform: Option<&str>,
+        source: Option<&str>,
+        danger_max: Option<u8>,
+    ) -> Result<Vec<Command>> {
+        let cat_val = category.filter(|s| !s.is_empty()).unwrap_or("");
+        let plat_val = platform.filter(|s| !s.is_empty()).unwrap_or("");
+        let src_val = source.filter(|s| !s.is_empty()).unwrap_or("");
+        let danger_val = danger_max.unwrap_or(255);
+
+        let mut stmt = self.conn.prepare(
+            "SELECT id, command, description, category, platform, danger_level, source, updated_at, params
+             FROM commands
+             WHERE (?1 = '' OR category = ?1)
+               AND (?2 = '' OR platform LIKE ?2)
+               AND (?3 = '' OR source = ?3)
+               AND (danger_level <= ?4)
+             ORDER BY updated_at DESC
+             LIMIT ?5",
+        )?;
+        let rows = stmt.query_map(
+            rusqlite::params![
+                cat_val,
+                format!("%{plat_val}%"),
+                src_val,
+                danger_val,
+                limit as i64
+            ],
+            row_to_command,
+        )?;
+        rows.collect::<rusqlite::Result<Vec<_>>>()
+            .map_err(WcError::from)
+    }
+
+    pub fn distinct_categories(&self) -> Result<Vec<String>> {
+        let mut stmt = self.conn.prepare(
+            "SELECT DISTINCT category FROM commands WHERE category IS NOT NULL AND category != '' ORDER BY category",
+        )?;
+        let rows = stmt.query_map([], |r| r.get(0))?;
+        rows.collect::<rusqlite::Result<Vec<_>>>()
+            .map_err(WcError::from)
+    }
+
+    pub fn distinct_platforms(&self) -> Result<Vec<String>> {
+        let mut stmt = self.conn.prepare(
+            "SELECT DISTINCT platform FROM commands WHERE platform IS NOT NULL AND platform != ''",
+        )?;
+        let rows = stmt.query_map([], |r| {
+            let raw: String = r.get(0)?;
+            let parts: Vec<String> = raw
+                .split(',')
+                .map(|s| s.trim().to_string())
+                .filter(|s| !s.is_empty())
+                .collect();
+            Ok(parts)
+        })?;
+        let mut all: Vec<String> = Vec::new();
+        for row in rows {
+            all.extend(row?);
+        }
+        all.sort();
+        all.dedup();
+        Ok(all)
+    }
+
+    pub fn distinct_sources(&self) -> Result<Vec<String>> {
+        let mut stmt = self.conn.prepare(
+            "SELECT DISTINCT source FROM commands WHERE source IS NOT NULL AND source != '' ORDER BY source",
+        )?;
+        let rows = stmt.query_map([], |r| r.get(0))?;
+        rows.collect::<rusqlite::Result<Vec<_>>>()
+            .map_err(WcError::from)
+    }
+
     fn list_recent(&self, limit: usize) -> Result<Vec<Command>> {
         let mut stmt = self.conn.prepare(
-            "SELECT id, command, description, category, platform, danger_level, source, updated_at
+            "SELECT id, command, description, category, platform, danger_level, source, updated_at, params
              FROM commands ORDER BY updated_at DESC LIMIT ?1",
         )?;
         let rows = stmt.query_map(params![limit as i64], row_to_command)?;
@@ -169,7 +335,7 @@ impl CommandStore {
 
     pub fn get_by_id(&self, id: &str) -> Result<Option<Command>> {
         let mut stmt = self.conn.prepare(
-            "SELECT id, command, description, category, platform, danger_level, source, updated_at
+            "SELECT id, command, description, category, platform, danger_level, source, updated_at, params
              FROM commands WHERE id = ?1",
         )?;
         let mut rows = stmt.query(params![id])?;
@@ -184,7 +350,8 @@ impl CommandStore {
             .conn
             .prepare("SELECT DISTINCT category FROM commands ORDER BY category")?;
         let rows = stmt.query_map([], |r| r.get(0))?;
-        rows.collect::<std::result::Result<Vec<_>, _>>().map_err(WcError::from)
+        rows.collect::<std::result::Result<Vec<_>, _>>()
+            .map_err(WcError::from)
     }
 
     pub fn list_frameworks(&self) -> Result<Vec<Framework>> {
@@ -199,12 +366,13 @@ impl CommandStore {
                 icon: r.get(3)?,
             })
         })?;
-        rows.collect::<std::result::Result<Vec<_>, _>>().map_err(WcError::from)
+        rows.collect::<std::result::Result<Vec<_>, _>>()
+            .map_err(WcError::from)
     }
 
     pub fn commands_by_framework(&self, framework_id: &str, limit: usize) -> Result<Vec<Command>> {
         let mut stmt = self.conn.prepare(
-            "SELECT c.id, c.command, c.description, c.category, c.platform, c.danger_level, c.source, c.updated_at
+            "SELECT c.id, c.command, c.description, c.category, c.platform, c.danger_level, c.source, c.updated_at, c.params
              FROM commands c
              INNER JOIN command_frameworks cf ON cf.command_id = c.id
              WHERE cf.framework_id = ?1
@@ -221,19 +389,23 @@ impl CommandStore {
             return Ok(vec![]);
         };
         let mut stmt = self.conn.prepare(
-            "SELECT id, command, description, category, platform, danger_level, source, updated_at
+            "SELECT id, command, description, category, platform, danger_level, source, updated_at, params
              FROM commands
              WHERE category = ?1 AND id != ?2
              LIMIT ?3",
         )?;
-        let rows = stmt.query_map(params![base.category, command_id, limit as i64], row_to_command)?;
+        let rows = stmt.query_map(
+            params![base.category, command_id, limit as i64],
+            row_to_command,
+        )?;
         rows.collect::<rusqlite::Result<Vec<_>>>()
             .map_err(WcError::from)
     }
 
     pub fn validate_command(&self, cmd: &str) -> Result<(u8, String)> {
         let lower = cmd.to_lowercase();
-        let danger = if lower.contains("rm -rf") || lower.contains("mkfs") || lower.contains(":(){") {
+        let danger = if lower.contains("rm -rf") || lower.contains("mkfs") || lower.contains(":(){")
+        {
             3u8
         } else if lower.contains("rm ") || lower.contains("chmod") {
             2u8
@@ -275,7 +447,63 @@ impl CommandStore {
                 updated_at: r.get(3)?,
             })
         })?;
-        rows.collect::<std::result::Result<Vec<_>, _>>().map_err(WcError::from)
+        rows.collect::<std::result::Result<Vec<_>, _>>()
+            .map_err(WcError::from)
+    }
+
+    pub fn record_usage(
+        &self,
+        command_id: &str,
+        action: &str,
+        platform: Option<&str>,
+    ) -> Result<()> {
+        let id = Uuid::new_v4().to_string();
+        let timestamp = Utc::now().to_rfc3339();
+        self.conn.execute(
+            "INSERT INTO command_usage (id, command_id, action, timestamp, platform)
+             VALUES (?1, ?2, ?3, ?4, ?5)",
+            params![id, command_id, action, timestamp, platform],
+        )?;
+        Ok(())
+    }
+
+    pub fn get_recent_commands(&self, limit: usize) -> Result<Vec<Command>> {
+        let mut stmt = self.conn.prepare(
+            "SELECT DISTINCT c.id, c.command, c.description, c.category, c.platform, c.danger_level, c.source, c.updated_at, c.params
+             FROM commands c
+             INNER JOIN command_usage cu ON cu.command_id = c.id
+             ORDER BY cu.timestamp DESC
+             LIMIT ?1",
+        )?;
+        let rows = stmt.query_map(params![limit as i64], row_to_command)?;
+        rows.collect::<rusqlite::Result<Vec<_>>>()
+            .map_err(WcError::from)
+    }
+
+    pub fn get_top_commands(&self, limit: usize, days: i64) -> Result<Vec<Command>> {
+        let cutoff = Utc::now() - Duration::days(days);
+        let cutoff_str = cutoff.to_rfc3339();
+        let mut stmt = self.conn.prepare(
+            "SELECT c.id, c.command, c.description, c.category, c.platform, c.danger_level, c.source, c.updated_at, c.params,
+                    COUNT(*) as usage_count
+             FROM commands c
+             INNER JOIN command_usage cu ON cu.command_id = c.id
+             WHERE cu.timestamp >= ?1
+             GROUP BY c.id
+             ORDER BY usage_count DESC
+             LIMIT ?2",
+        )?;
+        let rows = stmt.query_map(params![cutoff_str, limit as i64], row_to_command)?;
+        rows.collect::<rusqlite::Result<Vec<_>>>()
+            .map_err(WcError::from)
+    }
+
+    pub fn update_params(&self, command_id: &str, params_json: &str) -> Result<()> {
+        self.conn.execute(
+            "UPDATE commands SET params = ?1 WHERE id = ?2",
+            params![params_json, command_id],
+        )?;
+        Ok(())
     }
 }
 
@@ -288,6 +516,11 @@ fn row_to_command(row: &rusqlite::Row) -> rusqlite::Result<Command> {
             .filter(|s| !s.is_empty())
             .collect()
     });
+    let params: Option<Vec<crate::models::Param>> = row
+        .get::<_, Option<String>>(8)
+        .ok()
+        .flatten()
+        .and_then(|s| serde_json::from_str(&s).ok());
     Ok(Command {
         id: row.get(0)?,
         command: row.get(1)?,
@@ -297,15 +530,22 @@ fn row_to_command(row: &rusqlite::Row) -> rusqlite::Result<Command> {
         danger_level: row.get(5)?,
         source: row.get(6)?,
         updated_at: row.get(7)?,
+        params,
     })
 }
 
-pub fn simulate_with_store(store: &CommandStore, cmd: &str, vars: &HashMap<String, String>) -> SimulateResult {
+pub fn simulate_with_store(
+    store: &CommandStore,
+    cmd: &str,
+    vars: &HashMap<String, String>,
+) -> SimulateResult {
     let mut resolved = cmd.to_string();
     for (k, v) in vars {
         resolved = resolved.replace(&format!("{{{{{k}}}}}"), v);
         resolved = resolved.replace(&format!("${k}"), v);
     }
-    let (danger, _) = store.validate_command(&resolved).unwrap_or((0, String::new()));
+    let (danger, _) = store
+        .validate_command(&resolved)
+        .unwrap_or((0, String::new()));
     crate::simulator::simulate_command_inner(&resolved, danger)
 }

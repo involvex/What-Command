@@ -45,7 +45,11 @@ pub fn load_config() -> Result<AppConfig> {
 }
 
 fn merge_env_keys(settings: &mut AppSettings) {
-    if settings.opencode_api_key.as_ref().is_none_or(|k| k.is_empty()) {
+    if settings
+        .opencode_api_key
+        .as_ref()
+        .is_none_or(|k| k.is_empty())
+    {
         if let Ok(v) = std::env::var("OPENCODE_API_KEY") {
             if !v.is_empty() {
                 settings.opencode_api_key = Some(v);
@@ -59,7 +63,11 @@ fn merge_env_keys(settings: &mut AppSettings) {
             }
         }
     }
-    if settings.local_model_path.as_ref().is_none_or(|p| p.is_empty()) {
+    if settings
+        .local_model_path
+        .as_ref()
+        .is_none_or(|p| p.is_empty())
+    {
         if let Ok(v) = std::env::var("LOCAL_GGUF_PATH") {
             if !v.is_empty() {
                 settings.local_model_path = Some(v);
@@ -77,10 +85,7 @@ pub fn save_config(config: &AppConfig) -> Result<()> {
 }
 
 pub fn ensure_db_from_seed(seed: &Path, target: &Path) -> Result<()> {
-    ensure_db_from_seed_source(
-        seed.exists().then_some(SeedSource::Path(seed)),
-        target,
-    )
+    ensure_db_from_seed_source(seed.exists().then_some(SeedSource::Path(seed)), target)
 }
 
 pub fn ensure_db_from_seed_bytes(seed: &[u8], target: &Path) -> Result<()> {

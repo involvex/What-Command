@@ -29,6 +29,7 @@ function useInPlayground(suggestion?: { command: string }) {
       <p v-if="!ai.messages.length" class="muted">
         Ask how to do something in the terminal…
       </p>
+      <p v-if="ai.error" class="error">{{ ai.error }}</p>
       <div
         v-for="(msg, i) in ai.messages"
         :key="i"
@@ -90,6 +91,11 @@ function useInPlayground(suggestion?: { command: string }) {
 }
 .muted {
   color: var(--color-text-muted);
+  margin: 0;
+}
+.error {
+  color: var(--color-danger, #c62828);
+  font-size: var(--text-body-sm-size);
   margin: 0;
 }
 </style>

@@ -16,3 +16,5 @@ clap.workspace = true
 tokio.workspace = true
 dirs.workspace = true
 clap_complete = "4"
+serde_json.workspace = true
+reqwest.workspace = true
