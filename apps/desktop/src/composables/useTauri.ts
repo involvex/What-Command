@@ -7,9 +7,41 @@ import type {
   SimulateResult,
 } from "../types";
 
+export interface FilterOptions {
+  categories: string[];
+  platforms: string[];
+  sources: string[];
+}
+
 export async function searchCommands(query: string, limit = 50): Promise<Command[]> {
   const { invoke } = await import("@tauri-apps/api/core");
   return invoke<Command[]>("search_commands", { query, limit });
+}
+
+export async function searchCommandsFiltered(
+  query: string,
+  limit = 50,
+  options?: {
+    category?: string;
+    platform?: string;
+    source?: string;
+    dangerMax?: number;
+  },
+): Promise<Command[]> {
+  const { invoke } = await import("@tauri-apps/api/core");
+  return invoke<Command[]>("search_commands_filtered", {
+    query,
+    limit,
+    category: options?.category ?? null,
+    platform: options?.platform ?? null,
+    source: options?.source ?? null,
+    dangerMax: options?.dangerMax ?? null,
+  });
+}
+
+export async function getFilterOptions(): Promise<FilterOptions> {
+  const { invoke } = await import("@tauri-apps/api/core");
+  return invoke<FilterOptions>("get_filter_options");
 }
 
 export async function getCommand(id: string): Promise<Command | null> {

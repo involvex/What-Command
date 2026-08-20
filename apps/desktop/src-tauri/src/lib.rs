@@ -5,6 +5,7 @@ use std::path::PathBuf;
 use std::path::Path;
 use std::sync::Mutex;
 
+use serde::{Deserialize, Serialize};
 use tauri::{Manager, State};
 use wc_ai::build_router;
 use wc_core::config::{
@@ -406,6 +407,48 @@ fn get_top_commands(
 }
 
 #[tauri::command]
+fn search_commands_filtered(
+    state: State<'_, AppState>,
+    query: String,
+    limit: usize,
+    category: Option<String>,
+    platform: Option<String>,
+    source: Option<String>,
+    danger_max: Option<u8>,
+) -> Result<Vec<Command>, String> {
+    state
+        .store
+        .lock()
+        .map_err(|e| e.to_string())?
+        .search_with_filters(
+            &query,
+            limit,
+            category.as_deref(),
+            platform.as_deref(),
+            source.as_deref(),
+            danger_max,
+        )
+        .map_err(|e| e.to_string())
+}
+
+#[tauri::command]
+fn get_filter_options(state: State<'_, AppState>) -> Result<FilterOptions, String> {
+    let store = state.store.lock().map_err(|e| e.to_string())?;
+    Ok(FilterOptions {
+        categories: store.distinct_categories().map_err(|e| e.to_string())?,
+        platforms: store.distinct_platforms().map_err(|e| e.to_string())?,
+        sources: store.distinct_sources().map_err(|e| e.to_string())?,
+    })
+}
+
+#[derive(Serialize, Deserialize)]
+struct FilterOptions {
+    categories: Vec<String>,
+    platforms: Vec<String>,
+    sources: Vec<String>,
+}
+
+#[tauri::command]
 fn update_command_params(
     state: State<'_, AppState>,
     command_id: String,
@@ -467,6 +510,8 @@ pub fn run() {
         })
         .invoke_handler(tauri::generate_handler![
             search_commands,
+            search_commands_filtered,
+            get_filter_options,
             get_command,
             list_categories,
             list_frameworks,

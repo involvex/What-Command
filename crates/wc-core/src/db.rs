@@ -177,13 +177,148 @@ impl CommandStore {
 
         let pattern = format!("%{q}%");
         let mut stmt = self.conn.prepare(
-            "SELECT id, command, description, category, platform, danger_level, source, updated_at, params
+            "SELECT id, command, description, category, platform, danger_level, source, updated_at, params,
+                    CASE
+                      WHEN command LIKE ?1 THEN 0
+                      WHEN description LIKE ?1 THEN 1
+                      WHEN category LIKE ?1 THEN 2
+                      ELSE 3
+                    END AS rank
              FROM commands
              WHERE command LIKE ?1 OR description LIKE ?1 OR category LIKE ?1
-             ORDER BY danger_level ASC, command ASC
+             ORDER BY rank ASC, danger_level ASC, command ASC
              LIMIT ?2",
         )?;
         let rows = stmt.query_map(params![pattern, limit as i64], row_to_command)?;
+        rows.collect::<rusqlite::Result<Vec<_>>>()
+            .map_err(WcError::from)
+    }
+
+    pub fn search_with_filters(
+        &self,
+        query: &str,
+        limit: usize,
+        category: Option<&str>,
+        platform: Option<&str>,
+        source: Option<&str>,
+        danger_max: Option<u8>,
+    ) -> Result<Vec<Command>> {
+        let q = query.trim();
+        if q.is_empty() {
+            return self.list_filtered(limit, category, platform, source, danger_max);
+        }
+
+        let pattern = format!("%{q}%");
+        let cat_val = category.filter(|s| !s.is_empty()).unwrap_or("");
+        let plat_val = platform.filter(|s| !s.is_empty()).unwrap_or("");
+        let src_val = source.filter(|s| !s.is_empty()).unwrap_or("");
+        let danger_val = danger_max.unwrap_or(255);
+
+        let mut stmt = self.conn.prepare(
+            "SELECT id, command, description, category, platform, danger_level, source, updated_at, params,
+                    CASE
+                      WHEN command LIKE ?1 THEN 0
+                      WHEN description LIKE ?1 THEN 1
+                      WHEN category LIKE ?1 THEN 2
+                      ELSE 3
+                    END AS rank
+             FROM commands
+             WHERE (command LIKE ?1 OR description LIKE ?1 OR category LIKE ?1)
+               AND (?2 = '' OR category = ?2)
+               AND (?3 = '' OR platform LIKE ?3)
+               AND (?4 = '' OR source = ?4)
+               AND (danger_level <= ?5)
+             ORDER BY rank ASC, danger_level ASC, command ASC
+             LIMIT ?6",
+        )?;
+        let rows = stmt.query_map(
+            rusqlite::params![
+                pattern,
+                cat_val,
+                format!("%{plat_val}%"),
+                src_val,
+                danger_val,
+                limit as i64
+            ],
+            row_to_command,
+        )?;
+        rows.collect::<rusqlite::Result<Vec<_>>>()
+            .map_err(WcError::from)
+    }
+
+    pub fn list_filtered(
+        &self,
+        limit: usize,
+        category: Option<&str>,
+        platform: Option<&str>,
+        source: Option<&str>,
+        danger_max: Option<u8>,
+    ) -> Result<Vec<Command>> {
+        let cat_val = category.filter(|s| !s.is_empty()).unwrap_or("");
+        let plat_val = platform.filter(|s| !s.is_empty()).unwrap_or("");
+        let src_val = source.filter(|s| !s.is_empty()).unwrap_or("");
+        let danger_val = danger_max.unwrap_or(255);
+
+        let mut stmt = self.conn.prepare(
+            "SELECT id, command, description, category, platform, danger_level, source, updated_at, params
+             FROM commands
+             WHERE (?1 = '' OR category = ?1)
+               AND (?2 = '' OR platform LIKE ?2)
+               AND (?3 = '' OR source = ?3)
+               AND (danger_level <= ?4)
+             ORDER BY updated_at DESC
+             LIMIT ?5",
+        )?;
+        let rows = stmt.query_map(
+            rusqlite::params![
+                cat_val,
+                format!("%{plat_val}%"),
+                src_val,
+                danger_val,
+                limit as i64
+            ],
+            row_to_command,
+        )?;
+        rows.collect::<rusqlite::Result<Vec<_>>>()
+            .map_err(WcError::from)
+    }
+
+    pub fn distinct_categories(&self) -> Result<Vec<String>> {
+        let mut stmt = self.conn.prepare(
+            "SELECT DISTINCT category FROM commands WHERE category IS NOT NULL AND category != '' ORDER BY category",
+        )?;
+        let rows = stmt.query_map([], |r| r.get(0))?;
+        rows.collect::<rusqlite::Result<Vec<_>>>()
+            .map_err(WcError::from)
+    }
+
+    pub fn distinct_platforms(&self) -> Result<Vec<String>> {
+        let mut stmt = self.conn.prepare(
+            "SELECT DISTINCT platform FROM commands WHERE platform IS NOT NULL AND platform != ''",
+        )?;
+        let rows = stmt.query_map([], |r| {
+            let raw: String = r.get(0)?;
+            let parts: Vec<String> = raw
+                .split(',')
+                .map(|s| s.trim().to_string())
+                .filter(|s| !s.is_empty())
+                .collect();
+            Ok(parts)
+        })?;
+        let mut all: Vec<String> = Vec::new();
+        for row in rows {
+            all.extend(row?);
+        }
+        all.sort();
+        all.dedup();
+        Ok(all)
+    }
+
+    pub fn distinct_sources(&self) -> Result<Vec<String>> {
+        let mut stmt = self.conn.prepare(
+            "SELECT DISTINCT source FROM commands WHERE source IS NOT NULL AND source != '' ORDER BY source",
+        )?;
+        let rows = stmt.query_map([], |r| r.get(0))?;
         rows.collect::<rusqlite::Result<Vec<_>>>()
             .map_err(WcError::from)
     }

@@ -18,6 +18,12 @@ export interface Command {
   params?: Param[] | null;
 }
 
+export interface FilterOptions {
+  categories: string[];
+  platforms: string[];
+  sources: string[];
+}
+
 export interface Framework {
   id: string;
   name: string;

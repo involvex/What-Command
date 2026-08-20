@@ -4,6 +4,7 @@ import { useCommandsStore } from "../stores/commands";
 import { usePlaygroundStore } from "../stores/playground";
 import CommandCard from "../components/CommandCard.vue";
 import SearchBar from "../components/SearchBar.vue";
+import FilterBar from "../components/FilterBar.vue";
 import {
   copyToClipboard,
   getRecentCommands,
@@ -21,7 +22,7 @@ const activeTab = ref("search");
 
 const displayItems = computed(() => {
   if (commands.query.length > 0) {
-    return commands.results.length ? commands.results : recentCommands.value;
+    return commands.results;
   }
   if (activeTab.value === "favorites") {
     return commands.favorites;
@@ -30,6 +31,7 @@ const displayItems = computed(() => {
 });
 
 onMounted(() => {
+  commands.loadFilterOptions();
   if (!commands.query) {
     loadRecent();
     activeTab.value = "recent";
@@ -41,9 +43,10 @@ watch(
   (q) => {
     if (q.length > 0) {
       activeTab.value = "search";
-      commands.search();
+      void commands.search();
     } else {
       activeTab.value = "recent";
+      loadRecent();
     }
   },
 );
@@ -77,6 +80,7 @@ function onFavorite(cmd: Command) {
   <section class="browse">
     <h1 class="t-headline-md">Browse</h1>
     <SearchBar v-model="commands.query" @search="commands.search()" />
+    <FilterBar />
     <div v-if="commands.query.length === 0" class="browse__tabs">
       <button
         class="btn btn--ghost btn--sm"
@@ -104,7 +108,7 @@ function onFavorite(cmd: Command) {
       "
       class="muted"
     >
-      No results for "{{ commands.query }}". Showing recent commands instead.
+      No results for "{{ commands.query }}".
     </p>
 
     <div v-if="displayItems.length === 0 && !commands.loading" class="muted">
