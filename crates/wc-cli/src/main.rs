@@ -1,10 +1,10 @@
-use std::path::PathBuf;
-use clap::{Parser, Subcommand, CommandFactory};
+use clap::{CommandFactory, Parser, Subcommand};
 use clap_complete::Shell;
-use wc_core::config::{ensure_db_from_seed, load_config, save_config};
-use wc_core::models::{AiContext, AppSettings};
-use wc_core::db::CommandStore;
+use std::path::PathBuf;
 use wc_ai::build_router;
+use wc_core::config::{ensure_db_from_seed, load_config, save_config};
+use wc_core::db::CommandStore;
+use wc_core::models::{AiContext, AppSettings};
 
 #[derive(Parser)]
 #[command(name = "wc", about = "What Command — CLI helper")]
@@ -22,13 +22,9 @@ enum Commands {
         limit: usize,
     },
     /// Ask AI to suggest a command
-    Ask {
-        prompt: String,
-    },
+    Ask { prompt: String },
     /// Explain a command via AI
-    Explain {
-        command: String,
-    },
+    Explain { command: String },
     /// Refresh bundled command database from seed
     Update,
     /// Configure AI providers, API keys, and models
@@ -63,10 +59,7 @@ enum SettingsCmd {
         raw: bool,
     },
     /// Set a single setting by key and persist it to config.toml
-    Set {
-        key: String,
-        value: String,
-    },
+    Set { key: String, value: String },
     /// Open the config file in $EDITOR
     Edit,
     /// Reset config to defaults
@@ -83,8 +76,7 @@ fn db_path() -> PathBuf {
 }
 
 fn seed_path() -> PathBuf {
-    PathBuf::from(env!("CARGO_MANIFEST_DIR"))
-        .join("../../data/commands.db")
+    PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("../../data/commands.db")
 }
 
 const VALID_KEYS: &[&str] = &[
@@ -113,6 +105,36 @@ fn mask(value: &str) -> String {
         "••••".into()
     } else {
         format!("••••:{}", &value[value.len() - 4..])
+    }
+}
+
+/// Validate that `key` is a known setting, returning it back.
+///
+/// Callers must use this before [`get_key`] so that a valid-but-unset value
+/// (which [`get_key`] reports as `None`) is never mistaken for an unknown key.
+fn resolve_key(key: &str) -> Result<&str, String> {
+    if VALID_KEYS.contains(&key) {
+        Ok(key)
+    } else {
+        Err(format!(
+            "unknown key '{key}'. Valid: {}",
+            VALID_KEYS.join(", ")
+        ))
+    }
+}
+
+/// Human-readable display of a setting value, masking secrets unless `raw`.
+/// Returns `"<none>"` for unset/empty values.
+fn display_value(value: Option<&str>, key: &str, raw: bool) -> String {
+    match value {
+        Some(v) if !v.is_empty() => {
+            if is_secret_key(key) && !raw {
+                mask(v)
+            } else {
+                v.to_string()
+            }
+        }
+        _ => "<none>".to_string(),
     }
 }
 
@@ -157,12 +179,21 @@ fn set_key(settings: &mut AppSettings, key: &str, value: String) -> Result<(), S
         "kilo_api_key" => settings.kilo_api_key = Some(value),
         "local_model_id" => settings.local_model_id = Some(value),
         "local_model_path" => settings.local_model_path = Some(value),
-        "local_max_tokens" => settings.local_max_tokens = Some(value.parse().map_err(|e| {
-            format!("local_max_tokens must be a number: {e}")
-        })?),
+        "local_max_tokens" => {
+            settings.local_max_tokens = Some(
+                value
+                    .parse()
+                    .map_err(|e| format!("local_max_tokens must be a number: {e}"))?,
+            )
+        }
         "openai_compat_base_url" => settings.openai_compat_base_url = Some(value),
         "openai_compat_api_key" => settings.openai_compat_api_key = Some(value),
-        _ => return Err(format!("unknown key '{key}'. Valid: {}", VALID_KEYS.join(", "))),
+        _ => {
+            return Err(format!(
+                "unknown key '{key}'. Valid: {}",
+                VALID_KEYS.join(", ")
+            ))
+        }
     }
     Ok(())
 }
@@ -273,29 +304,24 @@ fn handle_settings(cmd: &SettingsCmd) -> Result<(), Box<dyn std::error::Error>> 
         }
         SettingsCmd::Show { key, raw } => {
             let config = load_config()?;
-            if !VALID_KEYS.contains(&key.as_str()) {
-                eprintln!("unknown key '{}'", key);
-                eprintln!("valid keys: {}", VALID_KEYS.join(", "));
-                std::process::exit(2);
-            }
-            let value = get_key(&config.settings, key);
-            match value {
-                Some(v) if !v.is_empty() => {
-                    if is_secret_key(key) && !*raw {
-                        println!("{}", mask(&v));
-                    } else {
-                        println!("{v}");
-                    }
+            let key = match resolve_key(key) {
+                Ok(k) => k,
+                Err(e) => {
+                    eprintln!("{e}");
+                    std::process::exit(2);
                 }
-                _ => println!("<none>"),
-            }
+            };
+            let value = get_key(&config.settings, key);
+            println!("{}", display_value(value.as_deref(), key, *raw));
         }
         SettingsCmd::Set { key, value } => {
-            if !VALID_KEYS.contains(&key.as_str()) {
-                eprintln!("unknown key '{}'", key);
-                eprintln!("valid keys: {}", VALID_KEYS.join(", "));
-                std::process::exit(2);
-            }
+            let key = match resolve_key(key) {
+                Ok(k) => k,
+                Err(e) => {
+                    eprintln!("{e}");
+                    std::process::exit(2);
+                }
+            };
             let mut config = load_config()?;
             let value = normalize_value(key, value);
             if value.is_empty() {
@@ -305,18 +331,8 @@ fn handle_settings(cmd: &SettingsCmd) -> Result<(), Box<dyn std::error::Error>> 
                 std::process::exit(2);
             }
             save_config(&config)?;
-            let current = get_key(&config.settings, key).unwrap_or_default();
-            let displayed = if is_secret_key(key) {
-                if current.is_empty() {
-                    "<none>".to_string()
-                } else {
-                    mask(&current)
-                }
-            } else if current.is_empty() {
-                "<none>".to_string()
-            } else {
-                current
-            };
+            let current = get_key(&config.settings, key);
+            let displayed = display_value(current.as_deref(), key, false);
             println!("{} = {}", key, displayed);
             println!("saved to {}", cfg_path.display());
         }
@@ -346,11 +362,12 @@ fn handle_settings(cmd: &SettingsCmd) -> Result<(), Box<dyn std::error::Error>> 
         }
         SettingsCmd::Reset => {
             let config = wc_core::models::AppSettings::default();
-            let full = wc_core::config::AppConfig {
-                settings: config,
-            };
+            let full = wc_core::config::AppConfig { settings: config };
             save_config(&full)?;
-            println!("reset config to defaults and saved to {}", cfg_path.display());
+            println!(
+                "reset config to defaults and saved to {}",
+                cfg_path.display()
+            );
         }
         SettingsCmd::Env => {
             let vars = [
@@ -487,10 +504,7 @@ mod tests {
         assert_eq!(get_key(&s, "ai_model").unwrap(), "gemma-3");
 
         set_key(&mut s, "opencode_api_key", "sk-real-secret".into()).unwrap();
-        assert_eq!(
-            get_key(&s, "opencode_api_key").unwrap(),
-            "sk-real-secret"
-        );
+        assert_eq!(get_key(&s, "opencode_api_key").unwrap(), "sk-real-secret");
         // masking hides the secret
         assert_eq!(mask(&get_key(&s, "opencode_api_key").unwrap()), "••••:cret");
     }
@@ -517,10 +531,7 @@ mod tests {
         assert_eq!(normalize_value("ai_provider", "opencode"), "opencode_zen");
         assert_eq!(normalize_value("ai_provider", "kilo"), "kilo_gateway");
         assert_eq!(normalize_value("ai_provider", "local"), "local_llm");
-        assert_eq!(
-            normalize_value("ai_provider", "openai"),
-            "openai_compat"
-        );
+        assert_eq!(normalize_value("ai_provider", "openai"), "openai_compat");
         // already-canonical values pass through
         assert_eq!(
             normalize_value("ai_provider", "openai_compat"),
@@ -538,10 +549,7 @@ mod tests {
     fn local_max_tokens_parses() {
         let mut s = AppSettings::default();
         set_key(&mut s, "local_max_tokens", "512".into()).unwrap();
-        assert_eq!(
-            get_key(&s, "local_max_tokens").unwrap(),
-            "512".to_string()
-        );
+        assert_eq!(get_key(&s, "local_max_tokens").unwrap(), "512".to_string());
         assert!(set_key(&mut s, "local_max_tokens", "not-a-num".into()).is_err());
     }
 
@@ -572,6 +580,34 @@ mod tests {
     }
 
     #[test]
+    fn resolve_key_distinguishes_known_vs_unknown() {
+        assert_eq!(resolve_key("ai_provider"), Ok("ai_provider"));
+        assert!(resolve_key("bogus").is_err());
+    }
+
+    #[test]
+    fn display_value_masks_and_handles_none() {
+        // secret masked unless raw
+        assert_eq!(
+            display_value(Some("sk-secret1234"), "opencode_api_key", false),
+            "••••:1234"
+        );
+        assert_eq!(
+            display_value(Some("sk-secret1234"), "opencode_api_key", true),
+            "sk-secret1234"
+        );
+        // non-secret plain
+        assert_eq!(
+            display_value(Some("openai_compat"), "ai_provider", false),
+            "openai_compat"
+        );
+        // None (valid-but-unset) -> "<none>", not "unknown key"
+        assert_eq!(display_value(None, "opencode_api_key", false), "<none>");
+        // empty string -> "<none>"
+        assert_eq!(display_value(Some(""), "ai_model", false), "<none>");
+    }
+
+    #[test]
     fn json_map_masks_secrets_by_default() {
         let mut s = AppSettings::default();
         set_key(&mut s, "opencode_api_key", "sk-real-secret-1234".into()).unwrap();
@@ -580,14 +616,29 @@ mod tests {
         set_key(&mut s, "local_max_tokens", "512".into()).unwrap();
 
         let masked = settings_json_map(&s, false);
-        assert_eq!(masked.get("opencode_api_key"), Some(&serde_json::Value::String("••••:1234".into())));
-        assert_eq!(masked.get("kilo_api_key"), Some(&serde_json::Value::String("••••:5678".into())));
+        assert_eq!(
+            masked.get("opencode_api_key"),
+            Some(&serde_json::Value::String("••••:1234".into()))
+        );
+        assert_eq!(
+            masked.get("kilo_api_key"),
+            Some(&serde_json::Value::String("••••:5678".into()))
+        );
         // non-secret values are plain
-        assert_eq!(masked.get("ai_model"), Some(&serde_json::Value::String("mimo-v2.5-free".into())));
+        assert_eq!(
+            masked.get("ai_model"),
+            Some(&serde_json::Value::String("mimo-v2.5-free".into()))
+        );
         // local_max_tokens is a JSON number
-        assert_eq!(masked.get("local_max_tokens"), Some(&serde_json::Value::Number(512.into())));
+        assert_eq!(
+            masked.get("local_max_tokens"),
+            Some(&serde_json::Value::Number(512.into()))
+        );
         // unset optionals are null, not "<none>"
-        assert_eq!(masked.get("local_model_path"), Some(&serde_json::Value::Null));
+        assert_eq!(
+            masked.get("local_model_path"),
+            Some(&serde_json::Value::Null)
+        );
     }
 
     #[test]
@@ -601,7 +652,10 @@ mod tests {
             Some(&serde_json::Value::String("sk-real-secret-1234".into()))
         );
         // non-secrets unchanged
-        assert_eq!(raw.get("ai_provider"), Some(&serde_json::Value::String("opencode_zen".into())));
+        assert_eq!(
+            raw.get("ai_provider"),
+            Some(&serde_json::Value::String("opencode_zen".into()))
+        );
     }
 
     #[test]
