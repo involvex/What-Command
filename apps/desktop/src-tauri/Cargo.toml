@@ -14,7 +14,7 @@ crate-type = ["staticlib", "cdylib", "rlib"]
 tauri-build = { version = "2.6", features = [] }
 
 [features]
-default = ["local-llm"]
+default = []
 local-llm = ["wc-ai/local-llm"]
 
 [dependencies]
