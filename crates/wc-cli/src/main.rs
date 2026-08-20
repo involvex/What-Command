@@ -28,9 +28,16 @@ enum Commands {
     /// Refresh bundled command database from seed
     Update,
     /// Configure AI providers, API keys, and models
+    ///
+    /// Run `wc settings` with no subcommand for a summary (same as `wc settings list`).
     Settings {
         #[command(subcommand)]
-        command: SettingsCmd,
+        command: Option<SettingsCmd>,
+    },
+    /// Print configuration paths
+    Config {
+        #[command(subcommand)]
+        command: ConfigCmd,
     },
     /// Generate shell completions
     Completions {
@@ -38,6 +45,14 @@ enum Commands {
         #[arg(value_enum)]
         shell: Shell,
     },
+}
+
+#[derive(Subcommand)]
+enum ConfigCmd {
+    /// Print the path to config.toml
+    Path,
+    /// Print the config directory
+    Dir,
 }
 
 #[derive(Subcommand)]
@@ -278,7 +293,14 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
             }
         }
         Commands::Settings { command } => {
+            let command = command.unwrap_or(SettingsCmd::List {
+                json: false,
+                raw: false,
+            });
             handle_settings(&command)?;
+        }
+        Commands::Config { command } => {
+            handle_config(&command)?;
         }
         Commands::Completions { shell } => {
             use clap_complete::generate;
@@ -398,6 +420,20 @@ fn handle_settings(cmd: &SettingsCmd) -> Result<(), Box<dyn std::error::Error>> 
             if !set {
                 println!("no override env vars set (env vars take precedence over config.toml)");
             }
+        }
+    }
+    Ok(())
+}
+
+fn handle_config(cmd: &ConfigCmd) -> Result<(), Box<dyn std::error::Error>> {
+    match cmd {
+        ConfigCmd::Path => {
+            let path = wc_core::config::config_path()?;
+            println!("{}", path.display());
+        }
+        ConfigCmd::Dir => {
+            let dir = wc_core::config::config_dir()?;
+            println!("{}", dir.display());
         }
     }
     Ok(())
@@ -672,5 +708,16 @@ mod tests {
     fn mask_handles_short_and_long() {
         assert_eq!(mask("ab"), "••••");
         assert_eq!(mask("secret1234"), "••••:1234");
+    }
+
+    #[test]
+    fn config_path_and_dir_resolve() {
+        let dir = wc_core::config::config_dir().expect("config dir resolves");
+        let path = wc_core::config::config_path().expect("config path resolves");
+        // config.toml lives under the config directory
+        assert_eq!(path.parent().unwrap(), dir.as_path());
+        assert_eq!(path.file_name().unwrap().to_str().unwrap(), "config.toml");
+        // the last path component is the "what-command" directory
+        assert_eq!(dir.file_name().unwrap().to_str().unwrap(), "what-command");
     }
 }

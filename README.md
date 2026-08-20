@@ -46,6 +46,7 @@ For local development, `bun link` exposes `wc` globally in dev mode (runs via `c
 `wc settings` manages `~/.config/what-command/config.toml` (AI providers, API keys, models):
 
 ```bash
+wc settings                  # same as 'wc settings list'
 wc settings list              # summarize settings (secrets masked)
 wc settings list --json       # JSON output (secrets masked; add --raw to include them)
 wc settings show ai_provider  # print one value (--raw to reveal a secret)
@@ -55,6 +56,8 @@ wc settings set ai_model null             # empty/"null" clears the key
 wc settings edit            # open the config file in $EDITOR
 wc settings reset           # restore defaults
 wc settings env             # show env vars (OPENCODE_API_KEY, KILO_API_KEY, ...) that override config
+wc config path              # print config.toml path
+wc config dir               # print config directory
 ```
 
 Env vars `OPENCODE_API_KEY`, `KILO_API_KEY`, `LOCAL_GGUF_PATH`, `OPENAI_COMPAT_BASE_URL`, and `OPENAI_COMPAT_API_KEY` take precedence over `config.toml`.
