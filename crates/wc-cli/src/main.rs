@@ -468,9 +468,8 @@ fn handle_config(cmd: &ConfigCmd) -> Result<(), Box<dyn std::error::Error>> {
 /// Extend here when adding new bundled defaults. Env `WC_MODEL_BASE_URL`
 /// overrides the host (useful behind mirrors).
 const MODEL_URLS: &[(&str, &str, &str)] = &[
-    ("gemma-2b-it-q4", "unsloth/gemma-2b-it-GGUF", "gemma-2b-it-Q4_K_M.gguf"),
-    ("gemma-2b-it-q4_0", "unsloth/gemma-2b-it-GGUF", "gemma-2b-it-Q4_K_M.gguf"),
-    ("gemma-2b-it-q8_0", "unsloth/gemma-2b-it-GGUF", "gemma-2b-it-Q8_0.gguf"),
+    ("qwen2-0.5b-q4", "Qwen/Qwen2-0.5B-Instruct-GGUF", "qwen2-0_5b-instruct-q4_k_m.gguf"),
+    ("qwen2-0.5b-q8", "Qwen/Qwen2-0.5B-Instruct-GGUF", "qwen2-0_5b-instruct-q8_0.gguf"),
 ];
 
 fn model_dir() -> Result<std::path::PathBuf, Box<dyn std::error::Error>> {
@@ -640,7 +639,7 @@ fn default_model_id() -> String {
     config
         .and_then(|c| c.settings.local_model_id.clone())
         .filter(|s| !s.is_empty())
-        .unwrap_or_else(|| "gemma-2b-it-q4".to_string())
+        .unwrap_or_else(|| "qwen2-0.5b-q4".to_string())
 }
 
 fn normalize_value(key: &str, value: &str) -> String {
@@ -927,15 +926,15 @@ mod tests {
 
     #[test]
     fn model_url_known() {
-        let u = model_url("gemma-2b-it-q4").expect("gemma-2b-it-q4 known");
-        assert!(u.ends_with("unsloth/gemma-2b-it-GGUF/resolve/main/gemma-2b-it-Q4_K_M.gguf"));
+        let u = model_url("qwen2-0.5b-q4").expect("qwen2-0.5b-q4 known");
+        assert!(u.ends_with("Qwen/Qwen2-0.5B-Instruct-GGUF/resolve/main/qwen2-0_5b-instruct-q4_k_m.gguf"));
     }
 
     #[test]
     fn model_url_respects_base_env() {
-        let u = model_url_with_base("gemma-2b-it-q4", Some("https://mirror.example/hf")).expect("url from mirror");
+        let u = model_url_with_base("qwen2-0.5b-q4", Some("https://mirror.example/hf")).expect("url from mirror");
         assert!(u.starts_with("https://mirror.example/hf/"));
-        assert!(u.ends_with("unsloth/gemma-2b-it-GGUF/resolve/main/gemma-2b-it-Q4_K_M.gguf"));
+        assert!(u.ends_with("Qwen/Qwen2-0.5B-Instruct-GGUF/resolve/main/qwen2-0_5b-instruct-q4_k_m.gguf"));
     }
 
     #[test]
