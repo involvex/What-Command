@@ -1,5 +1,8 @@
 {
   "name": "what-command",
+  "bin": {
+    "wc": "./bin/wc.mjs"
+  },
   "devDependencies": {
     "@typescript-eslint/eslint-plugin": "^8.63.0",
     "@typescript-eslint/parser": "^8.63.0",
@@ -35,6 +38,7 @@
     "cli:build": "cargo build -p wc-cli --release",
     "cli:dev": "cargo run -p wc-cli --",
     "cli:install": "cargo install --path crates/wc-cli --force",
+    "cli:link": "bun link",
     "cli:test": "cargo test -p wc-cli",
     "cli:completions": "cargo run -p wc-cli -- completions",
     "icons:generate": "bun run --filter desktop tauri icon \"../../assets/icon 1024x1024.png\""

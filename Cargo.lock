@@ -5043,6 +5043,7 @@ dependencies = [
  "clap",
  "clap_complete",
  "dirs",
+ "serde_json",
  "tokio",
  "wc-ai",
  "wc-core",
