@@ -247,6 +247,37 @@ async function onPickModel() {
         </div>
         <span class="hint">Model ID: {{ localModelId }}</span>
       </div>
+
+      <div class="field downloader-box">
+        <span class="field__label">Quick Model Downloader (Android & Desktop)</span>
+        <p class="hint">
+          Download recommended small GGUF models directly into your local app storage for offline use.
+        </p>
+        <div class="downloader-chips">
+          <button
+            type="button"
+            class="btn btn--ghost btn--sm"
+            @click="form.local_model_path = 'https://huggingface.co/unsloth/gemma-2b-it-GGUF/resolve/main/gemma-2b-it-Q4_K_M.gguf'; form.local_model_id = 'gemma-2b-it-q4'"
+          >
+            Gemma 2B IT (Q4)
+          </button>
+          <button
+            type="button"
+            class="btn btn--ghost btn--sm"
+            @click="form.local_model_path = 'https://huggingface.co/bartowski/Llama-3.2-1B-Instruct-GGUF/resolve/main/Llama-3.2-1B-Instruct-Q4_K_M.gguf'; form.local_model_id = 'llama-3.2-1b-q4'"
+          >
+            Llama 3.2 1B (Q4)
+          </button>
+          <button
+            type="button"
+            class="btn btn--ghost btn--sm"
+            @click="form.local_model_path = 'https://huggingface.co/Qwen/Qwen2.5-1.5B-Instruct-GGUF/resolve/main/qwen2.5-1.5b-instruct-q4_k_m.gguf'; form.local_model_id = 'qwen-2.5-1.5b-q4'"
+          >
+            Qwen 2.5 1.5B (Q4)
+          </button>
+        </div>
+      </div>
+
       <label class="field">
         <span class="field__label">Max tokens</span>
         <input
@@ -258,9 +289,7 @@ async function onPickModel() {
         />
       </label>
       <p class="hint">
-        Browse copies the model into app storage (required on Android). Use the main LLM
-        <code>.gguf</code> file — not <code>mmproj</code> vision projector files.
-        Android: <code>bun run android:apk:debug</code>.
+        Note: Passing vision projector files (<code>mmproj</code>) without the corresponding primary LLM weights or unsupported architectures like Gemma 4 vision projector alone causes <code>null result from llama cpp</code>. Always pair <code>mmproj</code> with the main text weights or select a standard text GGUF above.
       </p>
     </template>
 

@@ -140,6 +140,10 @@ const links = [
 .desktop-shell__main {
   padding: var(--space-8);
   overflow: auto;
-  background: radial-gradient(circle at top right, rgba(91, 107, 255, 0.04), transparent 40%);
+  background: radial-gradient(
+    circle at top right,
+    rgba(91, 107, 255, 0.04),
+    transparent 40%
+  );
 }
 </style>
