@@ -65,6 +65,8 @@ export interface AppSettings {
   local_max_tokens?: number | null;
   openai_compat_base_url?: string | null;
   openai_compat_api_key?: string | null;
+  theme?: string | null;
+  contrast?: string | null;
 }
 
 export interface CommandSuggestion {

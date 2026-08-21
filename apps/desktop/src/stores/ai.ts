@@ -16,10 +16,14 @@ export const useAiStore = defineStore("ai", () => {
 
   async function ask(prompt: string, frameworkId?: string) {
     error.value = null;
+    const history = messages.value.map((m) => ({
+      role: m.role,
+      content: m.content,
+    }));
     messages.value.push({ role: "user", content: prompt });
     loading.value = true;
     try {
-      const suggestion = await api.askAi(prompt, frameworkId);
+      const suggestion = await api.askAi(prompt, frameworkId, history);
       messages.value.push({
         role: "assistant",
         content: suggestion.explanation,

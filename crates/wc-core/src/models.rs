@@ -60,10 +60,20 @@ pub struct SimulateResult {
     pub blocked: bool,
 }
 
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct ChatMessagePayload {
+    pub role: String,
+    pub content: String,
+}
+
 #[derive(Debug, Clone, Default, Serialize, Deserialize)]
 pub struct AiContext {
     pub framework_id: Option<String>,
     pub platform: Option<String>,
+    #[serde(default)]
+    pub history: Option<Vec<ChatMessagePayload>>,
+    #[serde(default)]
+    pub current_directory: Option<String>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -96,6 +106,10 @@ pub struct AppSettings {
     pub local_max_tokens: Option<u32>,
     pub openai_compat_base_url: Option<String>,
     pub openai_compat_api_key: Option<String>,
+    #[serde(default)]
+    pub theme: Option<String>,
+    #[serde(default)]
+    pub contrast: Option<String>,
 }
 
 impl Default for AppSettings {

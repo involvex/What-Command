@@ -91,9 +91,10 @@ export async function simulateCommand(
 export async function askAi(
   prompt: string,
   frameworkId?: string,
+  history?: { role: string; content: string }[],
 ): Promise<CommandSuggestion> {
   const { invoke } = await import("@tauri-apps/api/core");
-  return invoke<CommandSuggestion>("ask_ai", { prompt, frameworkId });
+  return invoke<CommandSuggestion>("ask_ai", { prompt, frameworkId, history });
 }
 
 export async function explainCommand(command: string): Promise<string> {

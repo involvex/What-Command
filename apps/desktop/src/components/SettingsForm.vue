@@ -25,6 +25,8 @@ const form = reactive<AppSettings>({
   local_max_tokens: 256,
   openai_compat_base_url: "http://127.0.0.1:8080/v1",
   openai_compat_api_key: "",
+  theme: "dark",
+  contrast: "normal",
 });
 
 const saving = ref(false);
@@ -52,9 +54,24 @@ watch(
       openai_compat_base_url: s.openai_compat_base_url ?? "",
       openai_compat_api_key: s.openai_compat_api_key ?? "",
       local_max_tokens: s.local_max_tokens ?? 256,
+      theme: s.theme ?? "dark",
+      contrast: s.contrast ?? "normal",
     });
+    applyTheme(s.theme ?? "dark", s.contrast ?? "normal");
   },
   { immediate: true },
+);
+
+function applyTheme(theme: string, contrast: string) {
+  document.documentElement.setAttribute("data-theme", theme);
+  document.documentElement.setAttribute("data-contrast", contrast);
+}
+
+watch(
+  () => [form.theme, form.contrast],
+  ([t, c]) => {
+    applyTheme(t || "dark", c || "normal");
+  },
 );
 
 const showOpenCode = computed(
@@ -254,6 +271,26 @@ async function onPickModel() {
         />
       </label>
     </template>
+
+    <div class="section-divider"></div>
+    <h3 class="t-title-sm">Appearance & Accessibility</h3>
+
+    <div class="field-row">
+      <label class="field flex-1">
+        <span class="field__label">Theme</span>
+        <select v-model="form.theme" class="field__input">
+          <option value="dark">Dark (Halo)</option>
+          <option value="light">Light</option>
+        </select>
+      </label>
+      <label class="field flex-1">
+        <span class="field__label">Contrast</span>
+        <select v-model="form.contrast" class="field__input">
+          <option value="normal">Normal</option>
+          <option value="high">High Contrast</option>
+        </select>
+      </label>
+    </div>
 
     <div class="actions">
       <button class="btn btn--primary" type="submit" :disabled="saving">

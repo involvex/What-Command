@@ -177,12 +177,15 @@ async fn ask_ai(
     state: State<'_, AppState>,
     prompt: String,
     framework_id: Option<String>,
+    history: Option<Vec<wc_core::models::ChatMessagePayload>>,
 ) -> Result<wc_core::models::CommandSuggestion, String> {
     let settings = state.settings.lock().map_err(|e| e.to_string())?.clone();
     let router = build_router(&settings);
     let ctx = AiContext {
         framework_id,
         platform: None,
+        history,
+        current_directory: Some(std::env::current_dir().unwrap_or_default().to_string_lossy().to_string()),
     };
     match router.generate_command(&prompt, &ctx).await {
         Ok(s) => Ok(s),
