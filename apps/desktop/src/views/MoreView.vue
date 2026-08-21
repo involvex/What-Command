@@ -7,7 +7,9 @@ import SettingsForm from "../components/SettingsForm.vue";
 const favorites = useCommandsStore();
 const settings = useSettingsStore();
 
-onMounted(() => settings.load());
+onMounted(() => {
+  void settings.load();
+});
 </script>
 
 <template>
