@@ -102,27 +102,44 @@
 
 ---
 
-## 📱 Mobile-First (Android)
+## 📱 Mobile-First & Android App Polish
 
-### 10. Gesture Navigation & Touch Optimizations
+### 10. Gesture Navigation & Fluid Transitions
 
 - **What**: Swipe between tabs, pull-to-refresh, long-press context menus, haptic feedback.
 - **Why**: Mobile UX expectations differ from desktop.
 - **Implementation**:
-  - `@vueuse/gesture` or native touch events
-  - Capacitor-style edge swipe for back
-  - Bottom sheet for command details (instead of full card expand)
+  - Full-featured bottom tabs (`Browse`, `Playground`, `Research`, `AI Chat`, `More`) with swipe gestures and haptic feedback.
+  - `@vueuse/gesture` or native touch events for edge-swipe back and pull-to-refresh.
+  - Bottom sheet for command details (instead of full card expand) to maintain mobile ergonomic flow.
 
-### 11. Offline-First with Background Sync
+### 11. On-Device GGUF Model Selector & Quantization Toggles
+
+- **What**: Seamless management of local GGUF models (`--features local-llm`) with download status, VRAM estimation, and offline fallback.
+- **Why**: Empowers offline privacy and zero-cost on-device AI inference on capable Android hardware.
+- **Implementation**:
+  - `wc-ai` local engine integration with progress streaming via Tauri events.
+  - UI modal in Settings / AI Chat to pick quantizations (Q4_K_M, Q5_K_M, Q8_0).
+  - Automatic fallback to remote gateways or stub summaries when device memory is constrained.
+
+### 12. Simulated Terminal Enhancements
+
+- **What**: Richer feedback in the educational playground (`wc-core` simulation), highlighting blocked destructive commands and one-tap copy-to-clipboard handoff.
+- **Why**: Keeps the Android playground safe while teaching complex command syntax interactively.
+- **Implementation**:
+  - Enhanced `simulate_command` in `wc-core` returning structured ANSI-colored mock output, risk analysis, and suggested flags.
+  - Dedicated "Copy to Clipboard" primary action for executing real commands outside the sandbox.
+
+### 13. Offline-First with Background Sync
 
 - **What**: DB updates download in background; queue AI requests when offline; sync favorites/history when online.
 - **Why**: Mobile connectivity is unreliable.
 - **Implementation**:
-  - WorkManager (Android) / Background Tasks (iOS later) for DB updater
+  - WorkManager (Android) / Background Tasks for DB updater
   - Outbox pattern for AI requests: store locally, retry with exponential backoff
   - Conflict resolution for favorites (last-write-wins + merge)
 
-### 12. Widget / Quick Actions
+### 14. Widget & Quick Actions
 
 - **What**: Android home screen widget with top 3 favorites; "Ask AI" quick action from launcher.
 - **Why**: Zero-tap access to most-used commands.
@@ -134,7 +151,7 @@
 
 ## 🎨 UI/UX Polish
 
-### 13. Themes & Accessibility
+### 15. Themes & Accessibility
 
 - **What**: Light mode, high contrast, reduced motion, custom accent colors.
 - **Why**: Inclusivity; user preference.
@@ -143,7 +160,7 @@
   - `prefers-color-scheme`, `prefers-reduced-media`, `prefers-contrast` media queries
   - Settings: Theme selector, accent picker (indigo/cyan/amber/magenta)
 
-### 14. Onboarding & Interactive Tutorial
+### 16. Onboarding & Interactive Tutorial
 
 - **What**: First-run flow: pick AI provider, import GGUF, try playground, learn shortcuts.
 - **Why**: Reduces drop-off; teaches power features.
@@ -152,7 +169,7 @@
   - Persistent "Tips" panel (dismissible)
   - Keyboard shortcut cheat sheet (Cmd+/)
 
-### 15. Command Detail Drill-down
+### 17. Command Detail Drill-down
 
 - **What**: Tap command → full screen with: description, platforms, danger, examples, related, AI explain, user notes.
 - **Why**: Current card is truncated; power users want depth.
@@ -166,25 +183,25 @@
 
 ## 🧠 AI & Intelligence
 
-### 16. Local RAG (Retrieval-Augmented Generation)
+### 18. Local Hybrid Search (FTS5 + Vector Embeddings)
 
-- **What**: Embed command descriptions + examples; use for semantic search and AI context.
+- **What**: Combine SQLite FTS5 keyword search with lightweight ONNX/candle vector embeddings for semantic command discovery without cloud dependency.
 - **Why**: Keyword search misses intent ("how to find big files" ≠ `find -size`).
 - **Implementation**:
-  - `wc-core`: Add `embedding` column (BLOB) or sidecar `.vec` file
-  - `wc-ai`: `LocalEmbeddingProvider` (ONNX / candle / fastembed-rust)
-  - Search: Hybrid BM25 (FTS5) + vector similarity
-  - AI: Retrieve top-K relevant commands as context
+  - `wc-core`: Add embedding storage and scoring logic.
+  - `wc-ai`: `LocalEmbeddingProvider` using fastembed-rust / candle.
+  - Search: Hybrid ranking balancing BM25 text match with cosine similarity.
 
-### 17. AI-Powered Command Explanation (Enhanced)
+### 19. Context-Aware Multi-Turn Prompt Chaining
 
-- **What**: Structured explanation: "What it does", "Flags breakdown", "Common pitfalls", "Alternatives".
-- **Why**: Current explanation is flat text.
+- **What**: Conversational AI chat retaining recent command context, directory/project type detection (`package.json`, `Cargo.toml`), and structured follow-up suggestions.
+- **Why**: Real workflows are iterative and project-specific.
 - **Implementation**:
-  - Provider returns structured JSON (schema-defined)
-  - UI: Accordion sections, copyable flag table, danger callouts
+  - Extend `AiContext` with conversation history, workspace metadata, and active project markers.
+  - Provider prompts injecting relevant command snippets automatically.
+  - UI chips for quick follow-up actions ("explain this flag", "add to pipeline").
 
-### 18. Natural Language → Pipeline
+### 20. Natural Language → Pipeline
 
 - **What**: "Find all .log files older than 7 days, compress them, upload to S3" → multi-step pipeline.
 - **Why**: Complex tasks need composition.
@@ -197,7 +214,7 @@
 
 ## 📊 Data & Extensibility
 
-### 19. Additional Data Sources
+### 21. Additional Data Sources
 
 - **What**: Ingest `cheat.sh`, `eg`, `navi`, man pages, GitHub READMEs, custom YAML.
 - **Why**: tldr covers ~2000 commands; ecosystem has 10x more.
@@ -207,7 +224,7 @@
   - Source attribution preserved (`source` column)
   - CI: Weekly GitHub Action for each source
 
-### 20. Plugin / Extension API
+### 22. Plugin / Extension API
 
 - **What**: Third-party command sources, AI providers, UI panels via WASM or dynamic import.
 - **Why**: Community-driven growth without core bloat.
@@ -216,7 +233,7 @@
   - Manifest: `what-command-plugin.json` with `commands`, `providers`, `views`
   - Security: Capability-based permissions (read DB, network, fs)
 
-### 21. Telemetry (Opt-in, Anonymous)
+### 23. Telemetry (Opt-in, Anonymous)
 
 - **What**: Aggregate usage: top searches, AI provider success rates, simulation coverage.
 - **Why**: Data-driven prioritization.
@@ -229,7 +246,7 @@
 
 ## ⚡ Performance & Reliability
 
-### 22. Virtualized Lists & Incremental Search
+### 24. Virtualized Lists & Incremental Search
 
 - **What**: Render only visible commands; debounced search with loading skeleton.
 - **Why**: 5000+ commands → jank on low-end devices.
@@ -238,7 +255,7 @@
   - Rust: `search_commands` returns `totalCount` + `page` for pagination
   - Mobile: Critical for 60fps scrolling
 
-### 23. DB Optimizations
+### 25. DB Optimizations
 
 - **What**: FTS5 triggers for auto-rebuild; partial indexes; WAL mode; connection pooling.
 - **Why**: Faster searches, safer concurrent access.
@@ -247,7 +264,7 @@
   - FTS5 `triggers` on `commands` insert/update/delete
   - Index on `(category, danger_level)` for Research view
 
-### 24. Error Boundaries & Graceful Degradation
+### 26. Error Boundaries & Graceful Degradation
 
 - **What**: UI error boundaries; AI fallback chain; offline banner; corrupted DB recovery.
 - **Why**: Production resilience.
@@ -260,7 +277,7 @@
 
 ## 🧪 Testing & Quality
 
-### 25. E2E Test Suite (Playwright)
+### 27. E2E Test Suite (Playwright)
 
 - **What**: Critical flows: search→copy, AI ask→playground, settings persist, Android APK smoke test.
 - **Why**: Prevent regressions across platforms.
@@ -268,7 +285,7 @@
   - `webapp-testing` skill → Playwright config
   - CI: `bun run test:e2e` on desktop headless; Android emulator in GitHub Actions
 
-### 26. Property-Based Testing (Rust)
+### 28. Property-Based Testing (Rust)
 
 - **What**: `proptest` for simulator, parser, danger detection.
 - **Why**: Edge cases in command parsing are infinite.
@@ -280,7 +297,7 @@
 
 ## 📦 Distribution & Growth
 
-### 27. Package Manager Distribution
+### 29. Package Manager Distribution
 
 - **What**: Homebrew (`brew install what-command`), Scoop, Chocolatey, AUR, Nix, Cargo (`cargo install wc-cli`).
 - **Why**: Discoverability; standard install paths.
@@ -288,7 +305,7 @@
   - CI: `tauri-action` → artifacts → `gh release` → formula generators
   - `wc-cli` crate published to crates.io
 
-### 28. F-Droid / IzzyOnDroid (Android)
+### 30. F-Droid / IzzyOnDroid (Android)
 
 - **What**: Reproducible builds, open-source distribution.
 - **Why**: Plan.md mentions F-Droid; privacy-conscious users.
@@ -297,7 +314,7 @@
   - Reproducible build: pinned deps, no timestamps
   - Gradle: `signingConfig` for F-Droid key
 
-### 29. Auto-update (Desktop)
+### 31. Auto-update (Desktop)
 
 - **What**: Tauri Updater integration; delta updates; release channels (stable/beta/nightly).
 - **Why**: Seamless updates without GitHub Releases manual download.
@@ -312,11 +329,11 @@
 
 | Priority              | Features               | Rationale                                      |
 | --------------------- | ---------------------- | ---------------------------------------------- |
-| **P0 (Now)**          | 1, 2, 3, 6, 22, 24     | Core UX, developer workflow, perf, reliability |
-| **P1 (Next)**         | 4, 5, 7, 13, 14, 15    | Power features, accessibility, onboarding      |
-| **P2 (Mobile)**       | 10, 11, 12             | Android parity, offline-first                  |
-| **P3 (Intelligence)** | 16, 17, 18             | Differentiation via AI                         |
-| **P4 (Ecosystem)**    | 19, 20, 21, 27, 28, 29 | Growth, distribution, community                |
+| **P0 (Now)**          | 1, 2, 3, 6, 24, 26     | Core UX, developer workflow, perf, reliability |
+| **P1 (Next)**         | 4, 5, 7, 15, 16, 17    | Power features, accessibility, onboarding      |
+| **P2 (Mobile)**       | 10, 11, 12, 13, 14     | Android parity, offline-first, local GGUF      |
+| **P3 (Intelligence)** | 18, 19, 20             | Differentiation via hybrid RAG & AI chaining   |
+| **P4 (Ecosystem)**    | 21, 22, 23, 29, 30, 31 | Growth, distribution, community                |
 
 ---
 
@@ -343,4 +360,4 @@
 
 ---
 
-_Generated from codebase analysis — 2026-08-04_
+_Updated from codebase analysis & roadmap expansion — 2026-08-21_

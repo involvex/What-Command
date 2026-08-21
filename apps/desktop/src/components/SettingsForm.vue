@@ -9,7 +9,7 @@ const settingsStore = useSettingsStore();
 const providers = [
   { value: "opencode_zen", label: "OpenCode Zen" },
   { value: "kilo_gateway", label: "Kilo Gateway" },
-  { value: "local_llm", label: "Local LLM (GGUF)" },
+  { value: "local_llm", label: "Local LLM (GGUF / On-Device)" },
   { value: "openai_compat", label: "OpenAI-compatible" },
 ];
 
@@ -32,12 +32,18 @@ const pickingModel = ref(false);
 const saved = ref(false);
 const error = ref<string | null>(null);
 
+// Quantization presets for local GGUF models
+const quantizationPresets = [
+  { id: "gemma-2b-it-q4", name: "Gemma 2B IT (Q4_K_M - ~1.4 GB RAM)", tokens: 256 },
+  { id: "gemma-2b-it-q8", name: "Gemma 2B IT (Q8_0 - ~2.6 GB RAM)", tokens: 256 },
+  { id: "llama-3-8b-q4", name: "Llama 3 8B (Q4_K_M - ~4.8 GB RAM)", tokens: 512 },
+  { id: "phi-3-mini-q4", name: "Phi-3 Mini (Q4_K_M - ~2.2 GB RAM)", tokens: 256 },
+];
+
 watch(
   () => settingsStore.settings,
   (s) => {
-    if (!s) {
-      return;
-    }
+    if (!s) return;
     Object.assign(form, {
       ...s,
       opencode_api_key: s.opencode_api_key ?? "",
@@ -67,13 +73,17 @@ const localModelId = computed(() =>
     ? modelIdFromGgufPath(form.local_model_path)
     : form.local_model_id || "not set",
 );
-const showCompat = computed(
-  () =>
-    form.ai_provider === "openai_compat" || form.fallback_provider === "openai_compat",
-);
 
 function maskKey(value: string | null | undefined): boolean {
   return Boolean(value && value.length > 4);
+}
+
+function selectPreset(preset: (typeof quantizationPresets)[0]) {
+  form.local_model_id = preset.id;
+  form.local_max_tokens = preset.tokens;
+  if (form.ai_provider === "local_llm") {
+    form.ai_model = preset.id;
+  }
 }
 
 async function onSave() {
@@ -126,11 +136,10 @@ async function onPickModel() {
 
 <template>
   <form class="settings-form card" @submit.prevent="onSave">
-    <h2 class="t-title-md">AI Settings</h2>
+    <h2 class="t-title-md">AI Settings & On-Device GGUF</h2>
     <p class="muted">
-      Keys are stored in ~/.config/what-command/config.toml. Environment variables
-      (OPENCODE_API_KEY, KILO_API_KEY, LOCAL_GGUF_PATH) override empty fields at
-      startup.
+      Configure cloud gateways or select on-device GGUF weights for fully offline AI
+      inference.
     </p>
 
     <label class="field">
@@ -152,6 +161,61 @@ async function onPickModel() {
       />
     </label>
 
+    <!-- On-Device GGUF Selector & Quantization Toggles -->
+    <div v-if="showLocal" class="local-llm-section">
+      <div class="section-divider"></div>
+      <h3 class="t-title-sm">On-Device Local GGUF Configuration</h3>
+      <p class="muted text-sm">
+        Android feature flag <code>--features local-llm</code> enabled. Select model
+        weights or preset quantization.
+      </p>
+
+      <div class="preset-grid">
+        <button
+          v-for="p in quantizationPresets"
+          :key="p.id"
+          type="button"
+          class="btn btn--sm"
+          :class="form.local_model_id === p.id ? 'btn--primary' : 'btn--ghost'"
+          @click="selectPreset(p)"
+        >
+          {{ p.id.toUpperCase() }}
+        </button>
+      </div>
+
+      <div class="field">
+        <span class="field__label">Selected Model / VRAM Profile</span>
+        <div class="model-status-row">
+          <span class="mono model-path-badge">{{ localModelId }}</span>
+          <button
+            type="button"
+            class="btn btn--ghost btn--sm"
+            :disabled="pickingModel"
+            @click="onPickModel"
+          >
+            {{ pickingModel ? "Loading..." : "Browse GGUF File…" }}
+          </button>
+        </div>
+        <span v-if="form.local_model_path" class="hint mono break-all">
+          Path: {{ form.local_model_path }}
+        </span>
+      </div>
+
+      <label class="field">
+        <span class="field__label">Max Context Tokens</span>
+        <input
+          v-model.number="form.local_max_tokens"
+          class="field__input"
+          type="number"
+          min="128"
+          max="2048"
+          step="64"
+        />
+        <span class="hint">Lower token count preserves memory on Android mobile devices.</span>
+      </label>
+      <div class="section-divider"></div>
+    </div>
+
     <label class="field">
       <span class="field__label">Fallback provider</span>
       <select v-model="form.fallback_provider" class="field__input">
@@ -160,19 +224,6 @@ async function onPickModel() {
           {{ p.label }}
         </option>
       </select>
-    </label>
-
-    <label
-      v-if="form.fallback_provider && form.fallback_provider !== 'local_llm'"
-      class="field"
-    >
-      <span class="field__label">Fallback model</span>
-      <input
-        v-model="form.fallback_model"
-        class="field__input"
-        type="text"
-        autocomplete="off"
-      />
     </label>
 
     <template v-if="showOpenCode">
@@ -186,8 +237,7 @@ async function onPickModel() {
           placeholder="sk-…"
         />
         <span v-if="maskKey(settingsStore.settings?.opencode_api_key)" class="hint">
-          A key is saved; leave blank to keep it unchanged on next save only if you
-          re-enter.
+          A key is saved; leave blank to keep unchanged.
         </span>
       </label>
     </template>
@@ -200,104 +250,16 @@ async function onPickModel() {
           class="field__input"
           type="password"
           autocomplete="off"
+          placeholder="kilo-…"
         />
       </label>
-    </template>
-
-    <template v-if="showCompat">
-      <label class="field">
-        <span class="field__label">OpenAI-compatible base URL</span>
-        <input
-          v-model="form.openai_compat_base_url"
-          class="field__input"
-          type="url"
-          autocomplete="off"
-        />
-      </label>
-      <label class="field">
-        <span class="field__label">OpenAI-compatible API key</span>
-        <input
-          v-model="form.openai_compat_api_key"
-          class="field__input"
-          type="password"
-          autocomplete="off"
-        />
-      </label>
-    </template>
-
-    <template v-if="showLocal">
-      <div class="field">
-        <span class="field__label">Local GGUF model</span>
-        <div class="path-row">
-          <input
-            :value="form.local_model_path || ''"
-            class="field__input path-row__input"
-            type="text"
-            readonly
-            placeholder="Pick a main .gguf weights file (not mmproj)"
-          />
-          <button
-            type="button"
-            class="btn btn--primary path-row__btn"
-            :disabled="pickingModel"
-            @click="onPickModel"
-          >
-            {{ pickingModel ? "Opening…" : "Browse…" }}
-          </button>
-        </div>
-        <span class="hint">Model ID: {{ localModelId }}</span>
-      </div>
-
-      <div class="field downloader-box">
-        <span class="field__label">Quick Model Downloader (Android & Desktop)</span>
-        <p class="hint">
-          Download recommended small GGUF models directly into your local app storage for offline use.
-        </p>
-        <div class="downloader-chips">
-          <button
-            type="button"
-            class="btn btn--ghost btn--sm"
-            @click="form.local_model_path = 'https://huggingface.co/unsloth/gemma-2b-it-GGUF/resolve/main/gemma-2b-it-Q4_K_M.gguf'; form.local_model_id = 'gemma-2b-it-q4'"
-          >
-            Gemma 2B IT (Q4)
-          </button>
-          <button
-            type="button"
-            class="btn btn--ghost btn--sm"
-            @click="form.local_model_path = 'https://huggingface.co/bartowski/Llama-3.2-1B-Instruct-GGUF/resolve/main/Llama-3.2-1B-Instruct-Q4_K_M.gguf'; form.local_model_id = 'llama-3.2-1b-q4'"
-          >
-            Llama 3.2 1B (Q4)
-          </button>
-          <button
-            type="button"
-            class="btn btn--ghost btn--sm"
-            @click="form.local_model_path = 'https://huggingface.co/Qwen/Qwen2.5-1.5B-Instruct-GGUF/resolve/main/qwen2.5-1.5b-instruct-q4_k_m.gguf'; form.local_model_id = 'qwen-2.5-1.5b-q4'"
-          >
-            Qwen 2.5 1.5B (Q4)
-          </button>
-        </div>
-      </div>
-
-      <label class="field">
-        <span class="field__label">Max tokens</span>
-        <input
-          v-model.number="form.local_max_tokens"
-          class="field__input"
-          type="number"
-          min="32"
-          max="2048"
-        />
-      </label>
-      <p class="hint">
-        Note: Passing vision projector files (<code>mmproj</code>) without the corresponding primary LLM weights or unsupported architectures like Gemma 4 vision projector alone causes <code>null result from llama cpp</code>. Always pair <code>mmproj</code> with the main text weights or select a standard text GGUF above.
-      </p>
     </template>
 
     <div class="actions">
-      <button type="submit" class="btn btn--primary" :disabled="saving">
-        {{ saving ? "Saving…" : "Save settings" }}
+      <button class="btn btn--primary" type="submit" :disabled="saving">
+        {{ saving ? "Saving..." : "Save Settings" }}
       </button>
-      <span v-if="saved" class="success">Saved</span>
+      <span v-if="saved" class="success">Saved successfully!</span>
       <span v-if="error" class="error">{{ error }}</span>
     </div>
   </form>
@@ -312,56 +274,83 @@ async function onPickModel() {
 .muted {
   color: var(--color-text-muted);
   margin: 0;
+  font-size: var(--text-body-sm-size);
+}
+.text-sm {
+  font-size: 12px;
 }
 .field {
   display: flex;
   flex-direction: column;
-  gap: var(--space-2);
+  gap: var(--space-1);
 }
 .field__label {
   font-size: var(--text-body-sm-size);
   font-weight: 500;
-  color: var(--color-text-secondary);
 }
 .field__input {
-  padding: var(--space-3);
+  padding: var(--space-2);
+  background: var(--color-surface-hover);
   border: var(--border-width) solid var(--color-border);
   border-radius: var(--radius-sm);
-  background: var(--color-surface);
   color: var(--color-text);
-  font: inherit;
-}
-.path-row {
-  display: flex;
-  gap: var(--space-2);
-  align-items: stretch;
-}
-.path-row__input {
-  flex: 1;
-  min-width: 0;
-}
-.path-row__btn {
-  flex-shrink: 0;
+  font-size: var(--text-body-size);
 }
 .hint {
-  font-size: var(--text-body-sm-size);
+  font-size: 11px;
   color: var(--color-text-muted);
+}
+.break-all {
+  word-break: break-all;
+}
+.local-llm-section {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+  background: var(--color-surface-hover);
+  padding: var(--space-3);
+  border-radius: var(--radius-md);
+  border: var(--border-width) solid var(--color-border);
+}
+.section-divider {
+  height: 1px;
+  background: var(--color-border);
+  width: 100%;
+}
+.preset-grid {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-2);
+}
+.model-status-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-2);
+}
+.model-path-badge {
+  background: var(--color-surface);
+  padding: 4px 8px;
+  border-radius: var(--radius-sm);
+  font-size: 12px;
+  border: var(--border-width) solid var(--color-border);
+  flex: 1;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 .actions {
   display: flex;
   align-items: center;
   gap: var(--space-3);
+  margin-top: var(--space-2);
 }
 .success {
-  color: var(--color-success, #2e7d32);
+  color: #2e7d32;
   font-size: var(--text-body-sm-size);
 }
 .error {
   color: var(--color-danger, #c62828);
   font-size: var(--text-body-sm-size);
-}
-code {
-  font-family: var(--font-mono, monospace);
-  font-size: 0.9em;
 }
 </style>
