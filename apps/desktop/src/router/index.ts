@@ -4,6 +4,7 @@ import PlaygroundView from "../views/PlaygroundView.vue";
 import ResearchView from "../views/ResearchView.vue";
 import AiChatView from "../views/AiChatView.vue";
 import MoreView from "../views/MoreView.vue";
+import CommandDetailView from "../views/CommandDetailView.vue";
 
 export const router = createRouter({
   history: createWebHistory(),
@@ -14,5 +15,6 @@ export const router = createRouter({
     { path: "/research", component: ResearchView },
     { path: "/ai", component: AiChatView },
     { path: "/more", component: MoreView },
+    { path: "/command/:id", component: CommandDetailView },
   ],
 });

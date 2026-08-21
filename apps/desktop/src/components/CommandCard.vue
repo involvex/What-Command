@@ -37,6 +37,12 @@ const isDanger = (cmd: Command) => cmd.danger_level >= 2;
       <button class="btn btn--icon btn--sm" type="button" @click="$emit('favorite')">
         ★
       </button>
+      <router-link
+        class="btn btn--ghost btn--sm text-decoration-none"
+        :to="`/command/${command.id}`"
+      >
+        Details →
+      </router-link>
     </footer>
   </article>
 </template>
