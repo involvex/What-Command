@@ -45,6 +45,14 @@ pub struct CommandPack {
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct Framework {
+    pub id: String,
+    pub name: String,
+    pub description: String,
+    pub icon: String,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct CommandSuggestion {
     pub command: String,
     pub explanation: String,
@@ -126,6 +134,8 @@ impl Default for AppSettings {
             local_max_tokens: Some(256),
             openai_compat_base_url: None,
             openai_compat_api_key: None,
+            theme: Some("dark".into()),
+            contrast: Some("normal".into()),
         }
     }
 }
