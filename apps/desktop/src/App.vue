@@ -4,6 +4,7 @@ import { useLayout } from "./composables/useLayout";
 import MobileTabShell from "./layouts/MobileTabShell.vue";
 import DesktopShell from "./layouts/DesktopShell.vue";
 import CommandPalette from "./components/CommandPalette.vue";
+import OnboardingModal from "./components/OnboardingModal.vue";
 import { usePlaygroundStore } from "./stores/playground";
 import type { Command } from "./types";
 import { listenShowCommandPalette } from "./composables/useTauri";
@@ -13,6 +14,7 @@ const shell = computed(() => (isMobile.value ? MobileTabShell : DesktopShell));
 const playground = usePlaygroundStore();
 
 const paletteOpen = ref(false);
+const onboardingOpen = ref(false);
 const isOffline = ref(false);
 let unlistenShortcut: (() => void) | null = null;
 let keydownHandler: ((e: KeyboardEvent) => void) | null = null;
@@ -21,6 +23,10 @@ let offlineHandler: (() => void) | null = null;
 
 onMounted(async () => {
   isOffline.value = !navigator.onLine;
+
+  if (!localStorage.getItem("wc_onboarded")) {
+    onboardingOpen.value = true;
+  }
 
   unlistenShortcut = await listenShowCommandPalette(() => {
     paletteOpen.value = true;
@@ -69,6 +75,7 @@ function handleSelect(cmd: Command) {
   </div>
   <component :is="shell" />
   <CommandPalette v-model:visible="paletteOpen" @select="handleSelect" />
+  <OnboardingModal v-model:visible="onboardingOpen" />
 </template>
 
 <style>
