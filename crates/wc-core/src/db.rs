@@ -505,6 +505,59 @@ impl CommandStore {
         )?;
         Ok(())
     }
+
+    pub fn list_user_commands(&self) -> Result<Vec<Command>> {
+        let mut stmt = self.conn.prepare(
+            "SELECT id, command, description, category, platform, danger_level, source, updated_at, params
+             FROM commands
+             WHERE source = 'user'
+             ORDER BY updated_at DESC",
+        )?;
+        let rows = stmt.query_map([], row_to_command)?;
+        rows.collect::<rusqlite::Result<Vec<_>>>()
+            .map_err(WcError::from)
+    }
+
+    pub fn save_user_command(&self, cmd: &Command) -> Result<()> {
+        let plat_json =
+            serde_json::to_string(&cmd.platform).unwrap_or_else(|_| "[\"common\"]".to_string());
+        let params_json = cmd
+            .params
+            .as_ref()
+            .and_then(|p| serde_json::to_string(p).ok());
+        self.conn.execute(
+            "INSERT INTO commands (id, command, description, category, platform, danger_level, source, updated_at, params)
+             VALUES (?1, ?2, ?3, ?4, ?5, ?6, 'user', datetime('now'), ?7)
+             ON CONFLICT(id) DO UPDATE SET
+               command = excluded.command,
+               description = excluded.description,
+               category = excluded.category,
+               platform = excluded.platform,
+               danger_level = excluded.danger_level,
+               updated_at = datetime('now'),
+               params = excluded.params",
+            params![
+                cmd.id,
+                cmd.command,
+                cmd.description,
+                cmd.category,
+                plat_json,
+                cmd.danger_level,
+                params_json,
+            ],
+        )?;
+        self.rebuild_fts()?;
+        Ok(())
+    }
+
+    pub fn delete_user_command(&self, id: &str) -> Result<()> {
+        self.conn.execute(
+            "DELETE FROM commands WHERE id = ?1 AND source = 'user'",
+            params![id],
+        )?;
+        self.rebuild_fts()?;
+        Ok(())
+    }
 }
 
 fn row_to_command(row: &rusqlite::Row) -> rusqlite::Result<Command> {

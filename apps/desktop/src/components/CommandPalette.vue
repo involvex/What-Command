@@ -200,9 +200,7 @@ function toggleFavorite(cmd: Command) {
               <div class="cmd-palette__desc muted">{{ cmd.description }}</div>
               <div class="cmd-palette__meta">
                 <span class="badge badge--muted">{{ cmd.category }}</span>
-                <span v-if="cmd.danger_level >= 2" class="badge badge--warning"
-                  >destructive</span
-                >
+                <span v-if="cmd.danger_level >= 2" class="badge badge--warning">destructive</span>
                 <button
                   class="btn btn--ghost btn--sm"
                   type="button"

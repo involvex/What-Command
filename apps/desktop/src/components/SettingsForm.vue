@@ -211,9 +211,7 @@ async function onPickModel() {
           max="2048"
           step="64"
         />
-        <span class="hint"
-          >Lower token count preserves memory on Android mobile devices.</span
-        >
+        <span class="hint">Lower token count preserves memory on Android mobile devices.</span>
       </label>
       <div class="section-divider"></div>
     </div>

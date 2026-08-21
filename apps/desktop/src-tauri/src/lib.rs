@@ -210,6 +210,36 @@ fn get_settings(state: State<'_, AppState>) -> Result<AppSettings, String> {
 }
 
 #[tauri::command]
+fn list_user_commands(state: State<'_, AppState>) -> Result<Vec<Command>, String> {
+    state
+        .store
+        .lock()
+        .map_err(|e| e.to_string())?
+        .list_user_commands()
+        .map_err(|e| e.to_string())
+}
+
+#[tauri::command]
+fn save_user_command(state: State<'_, AppState>, command: Command) -> Result<(), String> {
+    state
+        .store
+        .lock()
+        .map_err(|e| e.to_string())?
+        .save_user_command(&command)
+        .map_err(|e| e.to_string())
+}
+
+#[tauri::command]
+fn delete_user_command(state: State<'_, AppState>, id: String) -> Result<(), String> {
+    state
+        .store
+        .lock()
+        .map_err(|e| e.to_string())?
+        .delete_user_command(&id)
+        .map_err(|e| e.to_string())
+}
+
+#[tauri::command]
 fn save_settings(state: State<'_, AppState>, mut settings: AppSettings) -> Result<(), String> {
     {
         let guard = state.settings.lock().map_err(|e| e.to_string())?;
@@ -531,6 +561,9 @@ pub fn run() {
             get_top_commands,
             update_command_params,
             extract_params,
+            list_user_commands,
+            save_user_command,
+            delete_user_command,
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");
