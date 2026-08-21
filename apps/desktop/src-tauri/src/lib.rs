@@ -207,9 +207,50 @@ async fn explain_command(
     }
 }
 
+fn detect_project_context() -> wc_core::models::ProjectContext {
+    let mut current = std::env::current_dir().unwrap_or_default();
+    let mut project_type = "generic".to_string();
+    let mut markers = vec![];
+
+    loop {
+        if current.join("Cargo.toml").exists() {
+            project_type = "rust".to_string();
+            markers.push("Cargo.toml".into());
+            break;
+        }
+        if current.join("package.json").exists() {
+            project_type = "node".to_string();
+            markers.push("package.json".into());
+            break;
+        }
+        if current.join("requirements.txt").exists() || current.join("pyproject.toml").exists() {
+            project_type = "python".to_string();
+            markers.push("requirements.txt / pyproject.toml".into());
+            break;
+        }
+        if current.join("go.mod").exists() {
+            project_type = "go".to_string();
+            markers.push("go.mod".into());
+            break;
+        }
+        if current.join("Dockerfile").exists() {
+            markers.push("Dockerfile".into());
+        }
+        if !current.pop() {
+            break;
+        }
+    }
+
+    wc_core::models::ProjectContext {
+        project_type,
+        root_path: std::env::current_dir().unwrap_or_default().to_string_lossy().to_string(),
+        markers_found: markers,
+    }
+}
+
 #[tauri::command]
-fn get_settings(state: State<'_, AppState>) -> Result<AppSettings, String> {
-    Ok(state.settings.lock().map_err(|e| e.to_string())?.clone())
+fn get_project_context() -> Result<wc_core::models::ProjectContext, String> {
+    Ok(detect_project_context())
 }
 
 #[tauri::command]

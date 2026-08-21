@@ -74,6 +74,13 @@ pub struct ChatMessagePayload {
     pub content: String,
 }
 
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct ProjectContext {
+    pub project_type: String, // 'rust', 'node', 'python', 'go', 'docker', 'generic'
+    pub root_path: String,
+    pub markers_found: Vec<String>,
+}
+
 #[derive(Debug, Clone, Default, Serialize, Deserialize)]
 pub struct AiContext {
     pub framework_id: Option<String>,
@@ -82,6 +89,8 @@ pub struct AiContext {
     pub history: Option<Vec<ChatMessagePayload>>,
     #[serde(default)]
     pub current_directory: Option<String>,
+    #[serde(default)]
+    pub project_context: Option<ProjectContext>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
