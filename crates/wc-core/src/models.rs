@@ -35,11 +35,13 @@ pub enum ParamType {
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct Framework {
+pub struct CommandPack {
     pub id: String,
     pub name: String,
     pub description: String,
     pub icon: String,
+    #[serde(default)]
+    pub commands: Vec<Command>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]

@@ -53,6 +53,19 @@ CREATE TABLE IF NOT EXISTS command_usage (
   platform TEXT
 );
 
+CREATE TABLE IF NOT EXISTS packs (
+  id TEXT PRIMARY KEY,
+  name TEXT NOT NULL,
+  description TEXT,
+  icon TEXT
+);
+
+CREATE TABLE IF NOT EXISTS pack_commands (
+  pack_id TEXT REFERENCES packs(id),
+  command_id TEXT REFERENCES commands(id),
+  PRIMARY KEY (pack_id, command_id)
+);
+
 CREATE INDEX IF NOT EXISTS idx_command_usage_command_id ON command_usage(command_id);
 CREATE INDEX IF NOT EXISTS idx_command_usage_timestamp ON command_usage(timestamp);
 ";
@@ -90,11 +103,44 @@ impl CommandStore {
     }
 
     pub fn seed_demo(&self) -> Result<()> {
-        let count: i64 = self
+        // Seed default command packs if none exist
+        let pack_count: i64 = self
             .conn
-            .query_row("SELECT COUNT(*) FROM commands", [], |r| r.get(0))?;
-        if count > 0 {
-            return Ok(());
+            .query_row("SELECT COUNT(*) FROM packs", [], |r| r.get(0))
+            .unwrap_or(0);
+        if pack_count == 0 {
+            let packs = [
+                (
+                    "k8s-debug",
+                    "Kubernetes Debugging",
+                    "Essential kubectl commands for inspecting pods and logs",
+                    "kubernetes",
+                ),
+                (
+                    "docker-essentials",
+                    "Docker Essentials",
+                    "Container build, run, and management commands",
+                    "container",
+                ),
+                (
+                    "git-workflow",
+                    "Git Advanced Workflow",
+                    "Branching, rebasing, and stashing shortcuts",
+                    "git-branch",
+                ),
+            ];
+            for (pid, name, desc, icon) in packs {
+                self.conn.execute(
+                    "INSERT INTO packs (id, name, description, icon) VALUES (?1, ?2, ?3, ?4)",
+                    params![pid, name, desc, icon],
+                )?;
+            }
+
+            // Link sample commands to packs if present
+            let _ = self.conn.execute(
+                "INSERT OR IGNORE INTO pack_commands (pack_id, command_id) VALUES ('docker-essentials', 'demo-find'), ('git-workflow', 'demo-ls')",
+                [],
+            );
         }
 
         let demos = [
@@ -550,12 +596,49 @@ impl CommandStore {
         Ok(())
     }
 
-    pub fn delete_user_command(&self, id: &str) -> Result<()> {
-        self.conn.execute(
-            "DELETE FROM commands WHERE id = ?1 AND source = 'user'",
-            params![id],
+    pub fn list_packs(&self) -> Result<Vec<crate::models::CommandPack>> {
+        let mut stmt = self
+            .conn
+            .prepare("SELECT id, name, description, icon FROM packs ORDER BY name")?;
+        let pack_iter = stmt.query_map([], |row| {
+            Ok(crate::models::CommandPack {
+                id: row.get(0)?,
+                name: row.get(1)?,
+                description: row.get(2)?,
+                icon: row.get(3)?,
+                commands: vec![],
+            })
+        })?;
+
+        let mut packs = vec![];
+        for p in pack_iter {
+            let mut pack = p?;
+            pack.commands = self.commands_in_pack(&pack.id)?;
+            packs.push(pack);
+        }
+        Ok(packs)
+    }
+
+    pub fn commands_in_pack(&self, pack_id: &str) -> Result<Vec<Command>> {
+        let mut stmt = self.conn.prepare(
+            "SELECT c.id, c.command, c.description, c.category, c.platform, c.danger_level, c.source, c.updated_at, c.params
+             FROM commands c
+             INNER JOIN pack_commands pc ON pc.command_id = c.id
+             WHERE pc.pack_id = ?1
+             ORDER BY c.command",
         )?;
-        self.rebuild_fts()?;
+        let rows = stmt.query_map(params![pack_id], row_to_command)?;
+        rows.collect::<rusqlite::Result<Vec<_>>>()
+            .map_err(WcError::from)
+    }
+
+    pub fn install_pack(&self, pack_id: &str, command_ids: &[String]) -> Result<()> {
+        for cid in command_ids {
+            self.conn.execute(
+                "INSERT OR IGNORE INTO pack_commands (pack_id, command_id) VALUES (?1, ?2)",
+                params![pack_id, cid],
+            )?;
+        }
         Ok(())
     }
 }

@@ -230,12 +230,26 @@ fn save_user_command(state: State<'_, AppState>, command: Command) -> Result<(),
 }
 
 #[tauri::command]
-fn delete_user_command(state: State<'_, AppState>, id: String) -> Result<(), String> {
+fn list_packs(state: State<'_, AppState>) -> Result<Vec<wc_core::models::CommandPack>, String> {
     state
         .store
         .lock()
         .map_err(|e| e.to_string())?
-        .delete_user_command(&id)
+        .list_packs()
+        .map_err(|e| e.to_string())
+}
+
+#[tauri::command]
+fn install_pack(
+    state: State<'_, AppState>,
+    pack_id: String,
+    command_ids: Vec<String>,
+) -> Result<(), String> {
+    state
+        .store
+        .lock()
+        .map_err(|e| e.to_string())?
+        .install_pack(&pack_id, &command_ids)
         .map_err(|e| e.to_string())
 }
 
@@ -564,6 +578,8 @@ pub fn run() {
             list_user_commands,
             save_user_command,
             delete_user_command,
+            list_packs,
+            install_pack,
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");

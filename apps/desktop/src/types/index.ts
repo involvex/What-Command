@@ -31,6 +31,14 @@ export interface Framework {
   icon: string;
 }
 
+export interface CommandPack {
+  id: string;
+  name: string;
+  description: string;
+  icon: string;
+  commands: Command[];
+}
+
 export interface SimulateResult {
   explanation: string;
   sample_output: string;

@@ -10,5 +10,5 @@ pub use config::{
 };
 pub use db::CommandStore;
 pub use error::{Result, WcError};
-pub use models::{Command, Framework, Param, ParamType, SimulateResult};
+pub use models::{Command, CommandPack, Framework, Param, ParamType, SimulateResult};
 pub use simulator::simulate_command;
