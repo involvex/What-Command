@@ -612,6 +612,7 @@ pub fn run() {
             explain_command,
             get_settings,
             save_settings,
+            get_project_context,
             import_gguf_model,
             save_playground_session,
             list_playground_sessions,
