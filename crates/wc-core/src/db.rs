@@ -596,6 +596,15 @@ impl CommandStore {
         Ok(())
     }
 
+    pub fn delete_user_command(&self, id: &str) -> Result<()> {
+        self.conn.execute(
+            "DELETE FROM commands WHERE id = ?1 AND source = 'user'",
+            params![id],
+        )?;
+        self.rebuild_fts()?;
+        Ok(())
+    }
+
     pub fn list_packs(&self) -> Result<Vec<crate::models::CommandPack>> {
         let mut stmt = self
             .conn

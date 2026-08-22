@@ -265,6 +265,16 @@ fn list_user_commands(state: State<'_, AppState>) -> Result<Vec<Command>, String
 }
 
 #[tauri::command]
+fn save_user_command(state: State<'_, AppState>, command: Command) -> Result<(), String> {
+    state
+        .store
+        .lock()
+        .map_err(|e| e.to_string())?
+        .save_user_command(&command)
+        .map_err(|e| e.to_string())
+}
+
+#[tauri::command]
 fn delete_user_command(state: State<'_, AppState>, id: String) -> Result<(), String> {
     state
         .store
@@ -273,6 +283,7 @@ fn delete_user_command(state: State<'_, AppState>, id: String) -> Result<(), Str
         .delete_user_command(&id)
         .map_err(|e| e.to_string())
 }
+
 #[tauri::command]
 fn list_packs(state: State<'_, AppState>) -> Result<Vec<wc_core::models::CommandPack>, String> {
     state
@@ -295,6 +306,11 @@ fn install_pack(
         .map_err(|e| e.to_string())?
         .install_pack(&pack_id, &command_ids)
         .map_err(|e| e.to_string())
+}
+
+#[tauri::command]
+fn get_settings(state: State<'_, AppState>) -> Result<AppSettings, String> {
+    Ok(state.settings.lock().map_err(|e| e.to_string())?.clone())
 }
 
 #[tauri::command]
