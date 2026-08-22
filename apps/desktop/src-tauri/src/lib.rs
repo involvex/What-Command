@@ -186,6 +186,7 @@ async fn ask_ai(
         platform: None,
         history,
         current_directory: Some(std::env::current_dir().unwrap_or_default().to_string_lossy().to_string()),
+        project_context: Some(detect_project_context()),
     };
     match router.generate_command(&prompt, &ctx).await {
         Ok(s) => Ok(s),
