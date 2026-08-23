@@ -62,7 +62,7 @@ wc config dir               # print config directory
 
 Env vars `OPENCODE_API_KEY`, `KILO_API_KEY`, `LOCAL_GGUF_PATH`, `OPENAI_COMPAT_BASE_URL`, and `OPENAI_COMPAT_API_KEY` take precedence over `config.toml`.
 
-Set `OPENCODE_API_KEY` or `KILO_API_KEY` (see `.env.example`) for live AI. For on-device GGUF inference, pick a `.gguf` file in Settings (copied to app storage on Android) and build with the `local-llm` feature — included in `bun run android:apk` and `bun run dev:local`. Host `cargo build --features local-llm` does **not** affect the Android APK. Use `bun run android:apk` (sets `ANDROID_NDK`, bindgen sysroot, and `local-llm`) or wrap manual builds with `node scripts/android-ndk-env.mjs …`.
+Set `OPENCODE_API_KEY` or `KILO_API_KEY` (see `.env.example`) for live AI. For on-device GGUF inference, pick a `.gguf` file in Settings (copied to app storage on Android) — the `local-llm` feature is enabled by default in all builds; pass `--no-default-features` to opt out. Android APKs still require `bun run android:apk` (sets `ANDROID_NDK` and bindgen sysroot) or wrapping manual builds with `node scripts/android-ndk-env.mjs …`.
 
 ## Project layout
 

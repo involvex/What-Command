@@ -30,15 +30,15 @@ pub fn resolve_model_path(model_id: &str, explicit: Option<&str>) -> Option<Path
 #[cfg(feature = "local-llm")]
 mod gguf {
     use super::*;
-    use std::collections::HashMap;
-    use std::num::NonZeroU32;
-    use std::sync::{Arc, Mutex, OnceLock};
     use llama_cpp_4::context::params::LlamaContextParams;
     use llama_cpp_4::llama_backend::LlamaBackend;
     use llama_cpp_4::llama_batch::LlamaBatch;
     use llama_cpp_4::model::params::LlamaModelParams;
     use llama_cpp_4::model::{AddBos, LlamaModel, Special};
     use llama_cpp_4::sampling::LlamaSampler;
+    use std::collections::HashMap;
+    use std::num::NonZeroU32;
+    use std::sync::{Arc, Mutex, OnceLock};
 
     struct CachedModel {
         backend: LlamaBackend,
@@ -59,7 +59,10 @@ mod gguf {
             return Ok(Arc::clone(existing));
         }
 
-        let backend = LlamaBackend::init().map_err(|e| WcError::Ai(e.to_string()))?;
+        let mut backend = LlamaBackend::init().map_err(|e| WcError::Ai(e.to_string()))?;
+        if std::env::var_os("WC_LLAMA_VERBOSE").is_none() {
+            backend.void_logs();
+        }
         let model = LlamaModel::load_from_file(&backend, path, &LlamaModelParams::default())
             .map_err(|e| {
                 let msg = e.to_string();
@@ -97,7 +100,7 @@ mod gguf {
         let mut batch = LlamaBatch::new(2048, 1);
         for (i, &tok) in tokens.iter().enumerate() {
             batch
-                .add(tok, i as i32, &[0], i == n_prompt - 1)
+                .add(tok, i as i32, &[0], true)
                 .map_err(|e| WcError::Ai(e.to_string()))?;
         }
         ctx.decode(&mut batch)
@@ -124,7 +127,7 @@ mod gguf {
                 .token_to_bytes(token, Special::Plaintext)
                 .map_err(|e| WcError::Ai(e.to_string()))?;
             let mut piece = String::new();
-            decoder.decode_to_string(&bytes, &mut piece, false);
+            let _ = decoder.decode_to_string(&bytes, &mut piece, false);
             out.push_str(&piece);
 
             batch.clear();

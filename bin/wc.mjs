@@ -5,6 +5,11 @@ import { fileURLToPath } from "node:url";
 
 const root = join(dirname(fileURLToPath(import.meta.url)), "..");
 
+const { applyHostMsvcEnv } = await import(
+  join(root, "scripts", "host-msvc-env.mjs")
+).catch(() => ({ applyHostMsvcEnv: () => false }));
+applyHostMsvcEnv();
+
 const result = spawnSync(
   "cargo",
   ["run", "-p", "wc-cli", "--", ...process.argv.slice(2)],
