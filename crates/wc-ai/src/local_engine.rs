@@ -83,7 +83,32 @@ mod gguf {
         Ok(cached)
     }
 
-    pub fn complete(model_path: &Path, prompt: &str, max_tokens: u32) -> Result<String> {
+    fn supports_chatml(model: &LlamaModel) -> bool {
+        model
+            .str_to_token("<|im_start|>", AddBos::Never)
+            .map(|tokens| tokens.len() == 1)
+            .unwrap_or(false)
+    }
+
+    fn build_prompt(model: &LlamaModel, system: &str, user: &str) -> (String, AddBos) {
+        if supports_chatml(model) {
+            (
+                format!(
+                    "<|im_start|>system\n{system}<|im_end|>\n<|im_start|>user\n{user}<|im_end|>\n<|im_start|>assistant\n"
+                ),
+                AddBos::Never,
+            )
+        } else {
+            (format!("{system}\n\n{user}"), AddBos::Always)
+        }
+    }
+
+    pub fn complete(
+        model_path: &Path,
+        system: &str,
+        user: &str,
+        max_tokens: u32,
+    ) -> Result<String> {
         let cached = load_model(model_path)?;
         let ctx_params = LlamaContextParams::default().with_n_ctx(NonZeroU32::new(2048));
         let mut ctx = cached
@@ -91,9 +116,10 @@ mod gguf {
             .new_context(&cached.backend, ctx_params)
             .map_err(|e| WcError::Ai(e.to_string()))?;
 
+        let (prompt, add_bos) = build_prompt(&cached.model, system, user);
         let tokens = cached
             .model
-            .str_to_token(prompt, AddBos::Always)
+            .str_to_token(&prompt, add_bos)
             .map_err(|e| WcError::Ai(e.to_string()))?;
         let n_prompt = tokens.len();
 
@@ -144,12 +170,17 @@ mod gguf {
 }
 
 #[cfg(feature = "local-llm")]
-pub fn complete(model_path: &Path, prompt: &str, max_tokens: u32) -> Result<String> {
-    gguf::complete(model_path, prompt, max_tokens)
+pub fn complete(model_path: &Path, system: &str, user: &str, max_tokens: u32) -> Result<String> {
+    gguf::complete(model_path, system, user, max_tokens)
 }
 
 #[cfg(not(feature = "local-llm"))]
-pub fn complete(_model_path: &Path, _prompt: &str, _max_tokens: u32) -> Result<String> {
+pub fn complete(
+    _model_path: &Path,
+    _system: &str,
+    _user: &str,
+    _max_tokens: u32,
+) -> Result<String> {
     Err(WcError::Ai(
         "local GGUF inference requires building wc-ai with the `local-llm` feature".into(),
     ))

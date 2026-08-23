@@ -39,9 +39,9 @@ impl LocalLlmProvider {
                     self.model_id, self.model_id
                 ))
             })?;
-        let prompt = format!("{SYSTEM}\n\n{user}");
+        let user = user.to_string();
         let max_tokens = self.max_tokens;
-        task::spawn_blocking(move || complete(&path, &prompt, max_tokens))
+        task::spawn_blocking(move || complete(&path, SYSTEM, &user, max_tokens))
             .await
             .map_err(|e| WcError::Ai(e.to_string()))?
     }
