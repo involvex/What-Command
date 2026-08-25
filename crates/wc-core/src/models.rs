@@ -127,6 +127,10 @@ pub struct AppSettings {
     pub theme: Option<String>,
     #[serde(default)]
     pub contrast: Option<String>,
+    #[serde(default)]
+    pub shell: Option<String>,
+    #[serde(default)]
+    pub clipboard_prompt: Option<bool>,
 }
 
 impl Default for AppSettings {
@@ -145,6 +149,8 @@ impl Default for AppSettings {
             openai_compat_api_key: None,
             theme: Some("dark".into()),
             contrast: Some("normal".into()),
+            shell: None,
+            clipboard_prompt: None,
         }
     }
 }

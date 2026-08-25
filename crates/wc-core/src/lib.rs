@@ -1,6 +1,7 @@
 pub mod config;
 pub mod db;
 pub mod error;
+pub mod hostenv;
 pub mod models;
 pub mod simulator;
 
@@ -10,5 +11,6 @@ pub use config::{
 };
 pub use db::CommandStore;
 pub use error::{Result, WcError};
+pub use hostenv::detect_shell;
 pub use models::{Command, CommandPack, Framework, Param, ParamType, SimulateResult};
 pub use simulator::simulate_command;

@@ -32,10 +32,11 @@ impl AiProvider for KiloGatewayProvider {
         "kilo_gateway"
     }
 
-    async fn generate_command(&self, prompt: &str, _ctx: &AiContext) -> Result<CommandSuggestion> {
+    async fn generate_command(&self, prompt: &str, ctx: &AiContext) -> Result<CommandSuggestion> {
+        let fw = ctx.framework_id.as_deref().unwrap_or("shell");
         let text = self
             .inner
-            .chat(SYSTEM, &format!("Task: {prompt}"))
+            .chat(SYSTEM, &format!("Generate a shell command for ({fw}): {prompt}"))
             .await?;
         Ok(parse_suggestion(&text))
     }

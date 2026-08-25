@@ -128,7 +128,11 @@ const VALID_KEYS: &[&str] = &[
     "local_max_tokens",
     "openai_compat_base_url",
     "openai_compat_api_key",
+    "shell",
+    "clipboard_prompt",
 ];
+
+const VALID_SHELLS: &[&str] = &["auto", "powershell", "pwsh", "cmd", "bash", "zsh", "fish", "sh"];
 
 fn is_secret_key(key: &str) -> bool {
     matches!(
@@ -188,6 +192,8 @@ fn get_key(settings: &AppSettings, key: &str) -> Option<String> {
         "local_max_tokens" => return settings.local_max_tokens.map(|n| n.to_string()),
         "openai_compat_base_url" => return settings.openai_compat_base_url.clone(),
         "openai_compat_api_key" => return settings.openai_compat_api_key.clone(),
+        "shell" => return settings.shell.clone(),
+        "clipboard_prompt" => return settings.clipboard_prompt.map(|b| b.to_string()),
         _ => return None,
     })
 }
@@ -225,6 +231,22 @@ fn set_key(settings: &mut AppSettings, key: &str, value: String) -> Result<(), S
         }
         "openai_compat_base_url" => settings.openai_compat_base_url = Some(value),
         "openai_compat_api_key" => settings.openai_compat_api_key = Some(value),
+        "shell" => {
+            if !VALID_SHELLS.contains(&value.as_str()) {
+                return Err(format!(
+                    "invalid shell '{value}'. Valid: {}",
+                    VALID_SHELLS.join(", ")
+                ));
+            }
+            settings.shell = Some(value);
+        }
+        "clipboard_prompt" => {
+            settings.clipboard_prompt = Some(match value.as_str() {
+                "true" | "1" | "yes" | "on" => true,
+                "false" | "0" | "no" | "off" => false,
+                _ => return Err(format!("invalid clipboard_prompt '{value}'. Valid: true, false")),
+            });
+        }
         _ => {
             return Err(format!(
                 "unknown key '{key}'. Valid: {}",
@@ -242,6 +264,35 @@ fn is_valid_provider(name: &str) -> bool {
     )
 }
 
+fn ai_context(settings: &AppSettings) -> AiContext {
+    AiContext {
+        framework_id: Some(wc_core::hostenv::detect_shell(settings.shell.as_deref())),
+        platform: Some(std::env::consts::OS.to_string()),
+        ..AiContext::default()
+    }
+}
+
+fn maybe_copy_to_clipboard(command: &str, enabled: bool) {
+    use std::io::{IsTerminal, Write};
+    if !enabled || !std::io::stdin().is_terminal() || !std::io::stdout().is_terminal() {
+        return;
+    }
+    print!("\rCopy command to clipboard? [Y/n] ");
+    let _ = std::io::stdout().flush();
+    let mut answer = String::new();
+    if std::io::stdin().read_line(&mut answer).unwrap_or(0) == 0 {
+        return;
+    }
+    let answer = answer.trim().to_ascii_lowercase();
+    if !answer.is_empty() && answer != "y" && answer != "yes" {
+        return;
+    }
+    match arboard::Clipboard::new().and_then(|mut clipboard| clipboard.set_text(command)) {
+        Ok(()) => println!("Copied to clipboard."),
+        Err(e) => eprintln!("clipboard error: {e}"),
+    }
+}
+
 fn clear_key(settings: &mut AppSettings, key: &str) -> Result<(), String> {
     match key {
         "ai_provider" => settings.ai_provider = String::new(),
@@ -255,6 +306,8 @@ fn clear_key(settings: &mut AppSettings, key: &str) -> Result<(), String> {
         "local_max_tokens" => settings.local_max_tokens = None,
         "openai_compat_base_url" => settings.openai_compat_base_url = None,
         "openai_compat_api_key" => settings.openai_compat_api_key = None,
+        "shell" => settings.shell = None,
+        "clipboard_prompt" => settings.clipboard_prompt = None,
         _ => return Err(format!("unknown key '{key}'")),
     }
     Ok(())
@@ -281,10 +334,11 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         Commands::Ask { prompt } => {
             let config = load_config()?;
             let router = build_router(&config.settings);
-            let ctx = AiContext::default();
+            let ctx = ai_context(&config.settings);
             match router.generate_command(&prompt, &ctx).await {
                 Ok(s) => {
                     println!("{}\n# {}", s.command, s.explanation);
+                    maybe_copy_to_clipboard(&s.command, config.settings.clipboard_prompt != Some(false));
                 }
                 Err(e) => {
                     eprintln!("AI error: {e}");
@@ -296,7 +350,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         Commands::Explain { command } => {
             let config = load_config()?;
             let router = build_router(&config.settings);
-            let ctx = AiContext::default();
+            let ctx = ai_context(&config.settings);
             match router.explain_command(&command, &ctx).await {
                 Ok(text) => println!("{text}"),
                 Err(e) => {
@@ -657,6 +711,17 @@ fn normalize_value(key: &str, value: &str) -> String {
             _ => value.to_string(),
         };
     }
+    if key == "clipboard_prompt" {
+        let lowered = value.to_ascii_lowercase();
+        if ["true", "1", "yes", "on", "false", "0", "no", "off"]
+            .contains(&lowered.as_str())
+        {
+            return lowered;
+        }
+    }
+    if key == "shell" {
+        return value.trim().to_ascii_lowercase();
+    }
     value.to_string()
 }
 
@@ -701,7 +766,12 @@ fn print_settings_summary(settings: &wc_core::models::AppSettings) {
     let opencode_api_key = mask_secret(&settings.opencode_api_key);
     let kilo_api_key = mask_secret(&settings.kilo_api_key);
     let openai_compat_api_key = mask_secret(&settings.openai_compat_api_key);
-    let fields: [(&str, &str); 11] = [
+    let shell_display = settings.shell.as_deref().unwrap_or("auto");
+    let clipboard_display = match settings.clipboard_prompt {
+        Some(false) => "off",
+        _ => "on",
+    };
+    let fields: [(&str, &str); 13] = [
         ("ai_provider", settings.ai_provider.as_str()),
         ("ai_model", settings.ai_model.as_str()),
         ("fallback_provider", fallback_provider),
@@ -713,6 +783,8 @@ fn print_settings_summary(settings: &wc_core::models::AppSettings) {
         ("local_max_tokens", &local_max_tokens),
         ("openai_compat_base_url", openai_compat_base_url),
         ("openai_compat_api_key", &openai_compat_api_key),
+        ("shell", shell_display),
+        ("clipboard_prompt", clipboard_display),
     ];
     let width = fields.iter().map(|(k, _)| k.len()).max().unwrap_or(0);
     for (key, value) in fields {
