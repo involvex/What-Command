@@ -138,11 +138,10 @@ mod gguf {
             LlamaSampler::dist(0),
         ]);
 
-        let mut pos = n_prompt as i32;
         let mut decoder = encoding_rs::UTF_8.new_decoder();
         let mut out = String::new();
 
-        for _ in 0..max_tokens {
+        for pos in (n_prompt as i32..).take(max_tokens as usize) {
             let token = sampler.sample(&ctx, 0);
             if cached.model.is_eog_token(token) {
                 break;
@@ -162,7 +161,6 @@ mod gguf {
                 .map_err(|e| WcError::Ai(e.to_string()))?;
             ctx.decode(&mut batch)
                 .map_err(|e| WcError::Ai(e.to_string()))?;
-            pos += 1;
         }
 
         Ok(out.trim().to_string())
