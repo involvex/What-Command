@@ -28,7 +28,7 @@
 
 ## 🚀 Phase 0: Foundation (Week 1-2) — _Complete_
 
-- ✅ CLI completions (`wc completions <shell>`)
+- ✅ CLI completions (`what-command completions <shell>`)
 - ✅ Full build script (`bun run build` = prebuild + desktop + android + cli)
 - ✅ Package.json scripts for CLI workflow
 
@@ -134,7 +134,7 @@
 - **Seed**: Built-in packs (Kubernetes, Docker, Git, AWS, React Native)
 - **UI**: ResearchView → "Packs" tab; swipe-to-install on mobile
 - **Import/Export**: JSON manifest → share via Gist/URL
-- **CLI**: `wc pack install <url>`, `wc pack export favorites`
+- **CLI**: `what-command pack install <url>`, `what-command pack export favorites`
 
 ---
 

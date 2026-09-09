@@ -63,10 +63,10 @@
 
 ### 6. Shell Integration & Completions
 
-- **What**: Generate shell completions (bash/zsh/fish/nushell) for `wc` CLI; "Open in Terminal" action from app.
+- **What**: Generate shell completions (bash/zsh/fish/nushell) for `what-command` CLI; "Open in Terminal" action from app.
 - **Why**: Seamless handoff from GUI to real shell.
 - **Implementation**:
-  - `wc completions <shell>` → stdout
+  - `what-command completions <shell>` → stdout
   - Desktop: `tauri-plugin-shell` → `open` with `wt`, `gnome-terminal`, `Terminal.app`, `konsole`, etc.
   - Android: Intent to Termux (`com.termux.RUN_COMMAND`) — see Plan.md
   - Copy as `alias gc='git commit -m'` for quick alias creation

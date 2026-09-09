@@ -23,11 +23,8 @@ struct AppState {
     settings: Mutex<AppSettings>,
 }
 
-fn db_path(app: &tauri::AppHandle) -> Result<PathBuf, String> {
-    let dir = app
-        .path()
-        .app_data_dir()
-        .map_err(|e| e.to_string())?;
+fn db_path() -> Result<PathBuf, String> {
+    let dir = config_dir().map_err(|e| e.to_string())?;
     std::fs::create_dir_all(&dir).map_err(|e| e.to_string())?;
     Ok(dir.join("commands.db"))
 }
@@ -55,11 +52,35 @@ fn read_android_seed(app: &tauri::AppHandle) -> Option<Vec<u8>> {
 }
 
 fn init_state(app: &tauri::AppHandle) -> Result<AppState, String> {
-    let config_dir = app.path().app_config_dir().map_err(|e| e.to_string())?;
-    std::fs::create_dir_all(&config_dir).map_err(|e| e.to_string())?;
-    set_config_dir(config_dir);
+    let app_config = app.path().app_config_dir().map_err(|e| e.to_string())?;
+    let app_data = app.path().app_data_dir().map_err(|e| e.to_string())?;
+    std::fs::create_dir_all(&app_config).map_err(|e| e.to_string())?;
 
-    let path = db_path(app)?;
+    let parent = app_config.parent().ok_or("could not resolve config parent")?;
+    let unified_dir = parent.join("what-command");
+    std::fs::create_dir_all(&unified_dir).map_err(|e| e.to_string())?;
+
+    if app_config.exists() && app_config != unified_dir {
+        if !unified_dir.join("config.toml").exists() {
+            if let Ok(entries) = std::fs::read_dir(&app_config) {
+                for entry in entries.flatten() {
+                    let dest = unified_dir.join(entry.file_name());
+                    let _ = std::fs::rename(entry.path(), dest);
+                }
+            }
+        }
+        let _ = std::fs::remove_dir(&app_config);
+    }
+
+    let old_db = app_data.join("commands.db");
+    let new_db = unified_dir.join("commands.db");
+    if old_db.exists() && !new_db.exists() {
+        let _ = std::fs::rename(old_db, new_db);
+    }
+
+    set_config_dir(unified_dir);
+
+    let path = db_path()?;
 
     #[cfg(target_os = "android")]
     {

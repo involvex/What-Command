@@ -26,38 +26,38 @@ bun run android:apk        # debug/release APK with local-llm (on-device GGUF)
 bun run dev:local          # desktop dev with local-llm
 bun run typecheck
 bun run lint
-cargo build -p wc-cli      # CLI binary `wc`
+cargo build -p wc-cli      # CLI binary `what-command`
 cargo run -p wc-cli -- search git
 ```
 
-## CLI (`wc`)
+## CLI (`what-command`)
 
 ```bash
-wc search "docker"
-wc ask "find large files"
-wc explain "kubectl get pods"
-wc update
+what-command search "docker"
+what-command ask "find large files"
+what-command explain "kubectl get pods"
+what-command update
 ```
 
-For local development, `bun link` exposes `wc` globally in dev mode (runs via `cargo run`, so source changes are picked up automatically). Remove it with `bun unlink`.
+For local development, `bun link` exposes `what-command` globally in dev mode (runs via `cargo run`, so source changes are picked up automatically). Remove it with `bun unlink`.
 
 ### Configuration
 
-`wc settings` manages `~/.config/what-command/config.toml` (AI providers, API keys, models):
+`what-command settings` manages `~/.config/what-command/config.toml` (AI providers, API keys, models):
 
 ```bash
-wc settings                  # same as 'wc settings list'
-wc settings list              # summarize settings (secrets masked)
-wc settings list --json       # JSON output (secrets masked; add --raw to include them)
-wc settings show ai_provider  # print one value (--raw to reveal a secret)
-wc settings set ai_provider local_llm      # aliases: opencode|kilo|local|openai
-wc settings set opencode_api_key sk-...    # secrets are masked in output
-wc settings set ai_model null             # empty/"null" clears the key
-wc settings edit            # open the config file in $EDITOR
-wc settings reset           # restore defaults
-wc settings env             # show env vars (OPENCODE_API_KEY, KILO_API_KEY, ...) that override config
-wc config path              # print config.toml path
-wc config dir               # print config directory
+what-command settings                  # same as 'what-command settings list'
+what-command settings list              # summarize settings (secrets masked)
+what-command settings list --json       # JSON output (secrets masked; add --raw to include them)
+what-command settings show ai_provider  # print one value (--raw to reveal a secret)
+what-command settings set ai_provider local_llm      # aliases: opencode|kilo|local|openai
+what-command settings set opencode_api_key sk-...    # secrets are masked in output
+what-command settings set ai_model null             # empty/"null" clears the key
+what-command settings edit            # open the config file in $EDITOR
+what-command settings reset           # restore defaults
+what-command settings env             # show env vars (OPENCODE_API_KEY, KILO_API_KEY, ...) that override config
+what-command config path              # print config.toml path
+what-command config dir               # print config directory
 ```
 
 Env vars `OPENCODE_API_KEY`, `KILO_API_KEY`, `LOCAL_GGUF_PATH`, `OPENAI_COMPAT_BASE_URL`, and `OPENAI_COMPAT_API_KEY` take precedence over `config.toml`.
