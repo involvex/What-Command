@@ -81,7 +81,9 @@ function saveNotes() {
         <div class="header-top">
           <span class="badge">{{ command.category }}</span>
           <span class="badge badge--muted">{{ command.source }}</span>
-          <span v-if="command.danger_level >= 2" class="badge badge--warning">destructive</span>
+          <span v-if="command.danger_level >= 2" class="badge badge--warning"
+            >destructive</span
+          >
         </div>
         <pre class="mono detail-code">{{ command.command }}</pre>
         <p class="detail-desc">{{ command.description }}</p>
