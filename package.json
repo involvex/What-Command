@@ -47,5 +47,6 @@
     "apps/*",
     "packages/*",
     "scripts/*"
-  ]
+  ],
+  "version": "0.0.1"
 }
