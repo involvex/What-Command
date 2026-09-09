@@ -8,7 +8,7 @@ use wc_core::db::CommandStore;
 use wc_core::models::{AiContext, AppSettings};
 
 #[derive(Parser)]
-#[command(name = "wc", about = "What Command — CLI helper")]
+#[command(name = "what-command", about = "What Command — CLI helper")]
 struct Cli {
     #[command(subcommand)]
     command: Commands,
@@ -30,7 +30,7 @@ enum Commands {
     Update,
     /// Configure AI providers, API keys, and models
     ///
-    /// Run `wc settings` with no subcommand for a summary (same as `wc settings list`).
+    /// Run `what-command settings` with no subcommand for a summary (same as `what-command settings list`).
     Settings {
         #[command(subcommand)]
         command: Option<SettingsCmd>,
@@ -384,7 +384,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         Commands::Completions { shell } => {
             use clap_complete::generate;
             let mut cmd = Cli::command();
-            generate(shell, &mut cmd, "wc", &mut std::io::stdout());
+            generate(shell, &mut cmd, "what-command", &mut std::io::stdout());
         }
     }
     Ok(())
@@ -682,7 +682,7 @@ async fn download_model(
     std::fs::rename(&tmp, &dest)?;
     println!("{model_id}: downloaded {} to {}", human_bytes(downloaded), dest.display());
     println!(
-        "enable with: wc settings set local_model_id {}\n   or:        wc settings set local_model_path {}",
+        "enable with: what-command settings set local_model_id {}\n   or:        what-command settings set local_model_path {}",
         model_id, dest.display()
     );
     Ok(())

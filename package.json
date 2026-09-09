@@ -1,7 +1,7 @@
 {
   "name": "what-command",
   "bin": {
-    "wc": "./bin/wc.mjs"
+    "what-command": "./bin/what-command.mjs"
   },
   "devDependencies": {
     "@typescript-eslint/eslint-plugin": "^8.63.0",
